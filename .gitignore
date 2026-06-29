@@ -1,0 +1,11 @@
+# Internal data — never publish
+*.csv
+*.xlsx
+*.xls
+
+# Backend (not needed for static hosting)
+main.py
+test_request.py
+requirements.txt
+__pycache__/
+.venv/
