@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Upload } from "lucide-react";
 
-import { summaryAtom } from "../state/atoms";
+import { datasetAtom, stageAtom, summaryAtom } from "../state/atoms";
 
-/** Sticky top bar: brand, dataset summary badge, theme toggle. */
+/** Sticky top bar: brand, dataset summary badge, upload-again, theme toggle. */
 export function AppHeader() {
   const summary = useAtomValue(summaryAtom);
+  const dataset = useAtomValue(datasetAtom);
+  const setStage = useSetAtom(stageAtom);
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -32,6 +34,17 @@ export function AppHeader() {
       <span className="ml-auto rounded-md border border-border bg-muted/60 px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
         {summary}
       </span>
+
+      {dataset ? (
+        <button
+          type="button"
+          onClick={() => setStage("upload")}
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Upload className="size-4" />
+          Upload again
+        </button>
+      ) : null}
 
       <button
         type="button"
