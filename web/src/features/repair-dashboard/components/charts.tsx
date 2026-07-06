@@ -15,7 +15,11 @@ import {
 } from "recharts";
 
 import { formatCompact, paletteColor } from "../lib/transform";
-import type { GroupCountDatum, StatusDatum } from "../lib/selectors";
+import type {
+  CompanyStatDatum,
+  GroupCountDatum,
+  StatusDatum,
+} from "../lib/selectors";
 
 const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 11 } as const;
 const LABEL_FILL = "var(--foreground)";
@@ -182,6 +186,74 @@ export function MonthlyBarChart({ labels, values, color }: MonthlyBarChartProps)
               formatter={(value) => (toNum(value) > 0 ? formatCompact(toNum(value)) : "")}
             />
           ) : null}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+interface CompanyStatBarChartProps {
+  data: CompanyStatDatum[];
+  /** Which numeric field to plot. */
+  metric: "total" | "passRate";
+  color: string;
+}
+
+/**
+ * Horizontal bars comparing companies on a single metric. Company names are
+ * long and numerous, so the category axis is vertical for readability.
+ */
+export function CompanyStatBarChart({
+  data,
+  metric,
+  color,
+}: CompanyStatBarChartProps) {
+  const isRate = metric === "passRate";
+  const formatValue = (value: number) =>
+    isRate ? `${value.toFixed(1)}%` : value.toLocaleString();
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        layout="vertical"
+        data={data}
+        margin={{ top: 4, right: 48, left: 4, bottom: 4 }}
+      >
+        <CartesianGrid horizontal={false} stroke={GRID_STROKE} />
+        <XAxis
+          type="number"
+          domain={isRate ? [0, 100] : undefined}
+          tick={AXIS_TICK}
+          tickFormatter={(value) => (isRate ? `${toNum(value)}%` : formatCompact(toNum(value)))}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis
+          type="category"
+          dataKey="company"
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+          width={130}
+          interval={0}
+        />
+        <Tooltip
+          cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+          contentStyle={tooltipStyle}
+          formatter={(value) => [
+            formatValue(toNum(value)),
+            isRate ? "PASS Rate" : "Total Repairs",
+          ]}
+        />
+        <Bar dataKey={metric} radius={[0, 4, 4, 0]} fill={color}>
+          <LabelList
+            dataKey={metric}
+            position="right"
+            fill={LABEL_FILL}
+            fontSize={10}
+            fontWeight={700}
+            formatter={(value) => formatValue(toNum(value))}
+          />
         </Bar>
       </BarChart>
     </ResponsiveContainer>

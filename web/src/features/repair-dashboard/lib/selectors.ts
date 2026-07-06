@@ -28,6 +28,14 @@ export interface CompanyNavItem {
   count: number;
 }
 
+/** Per-company totals: overall repair count and PASS rate. */
+export interface CompanyStatDatum {
+  company: string;
+  total: number;
+  passCount: number;
+  passRate: number;
+}
+
 function statusData(
   statusCount: Record<string, number>,
   allStatuses: string[],
@@ -59,6 +67,8 @@ export interface AllCompaniesView {
   statuses: StatusDatum[];
   groups: GroupSeries[];
   nav: CompanyNavItem[];
+  /** Per-company repair totals and PASS rates, sorted by total desc. */
+  companyStats: CompanyStatDatum[];
 }
 
 /** Aggregate view across every company. */
@@ -68,6 +78,7 @@ export function selectAllCompanies(dataset: RepairDataset): AllCompaniesView {
   const combinedMonthly: Record<string, Record<string, number>> = {};
   let grandAmount = 0;
   const nav: CompanyNavItem[] = [];
+  const companyStats: CompanyStatDatum[] = [];
 
   for (const [company, data] of entries) {
     let companyTotal = 0;
@@ -77,6 +88,14 @@ export function selectAllCompanies(dataset: RepairDataset): AllCompaniesView {
     }
     grandAmount += data.amount;
     nav.push({ company, count: companyTotal });
+
+    const passCount = data.statusCount["PASS"] ?? 0;
+    companyStats.push({
+      company,
+      total: companyTotal,
+      passCount,
+      passRate: companyTotal > 0 ? (passCount / companyTotal) * 100 : 0,
+    });
 
     for (const [group, byMonth] of Object.entries(data.monthly)) {
       const target = (combinedMonthly[group] ??= {});
@@ -93,6 +112,7 @@ export function selectAllCompanies(dataset: RepairDataset): AllCompaniesView {
     statuses: statusData(statusCount, dataset.allStatuses, dataset.grandTotal),
     groups: monthlySeries(combinedMonthly, dataset.allMonths),
     nav,
+    companyStats: companyStats.sort((a, b) => b.total - a.total),
   };
 }
 

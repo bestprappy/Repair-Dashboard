@@ -4,6 +4,7 @@ import { Banknote, Boxes, FileStack } from "lucide-react";
 
 import { MetricCard } from "@/components/metric-card";
 
+import { CompanyComparisonSection } from "./company-comparison-section";
 import { MonthlyGroupSection } from "./monthly-group-section";
 import { StatusOverviewSection } from "./status-overview-section";
 import { formatYM } from "../lib/transform";
@@ -43,6 +44,7 @@ export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
         title="Overall Status Distribution (All Companies)"
         statuses={view.statuses}
       />
+      <CompanyComparisonSection companyStats={view.companyStats} />
       <MonthlyGroupSection
         title="Monthly Total Amount by Group (All Companies)"
         monthLabels={monthLabels}
