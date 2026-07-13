@@ -35,30 +35,32 @@ export function paletteColor(index: number): string {
 }
 
 /** Semantic tone of a status label. */
-export type StatusTone = "good" | "warning" | "bad";
+export type StatusTone = "good" | "warning" | "bad" | "claim" | "noFault";
 
-/** Global CSS tokens (see globals.css) — reserved, never per-series. PASS
- * wears the primary brand blue; failures and in-progress states wear the
- * semantic error/warning tokens. */
+/** Reserved status colors — never reused per-series. Tokens live in
+ * globals.css; violet comes from the shared palette. */
 const STATUS_TONE_COLORS: Record<StatusTone, string> = {
-  good: "var(--primary)",
-  warning: "var(--warning)",
-  bad: "var(--error)",
+  good: "var(--success)", // green
+  warning: "var(--warning)", // amber
+  bad: "var(--error)", // red
+  claim: "var(--info)", // blue
+  noFault: PALETTE[5], // violet
 };
 
 /**
- * Palette slots that don't read as a status hue (no blue/red/amber), so an
- * unmapped status can never impersonate PASS or FAIL next to a mapped one.
+ * Palette slots that don't read as a status hue above, so an unmapped
+ * status can never impersonate PASS, FAIL, CLAIM, or NO FAULT FOUND.
  */
 const NEUTRAL_FALLBACK = [
   PALETTE[4], // teal
-  PALETTE[5], // violet
   PALETTE[6], // pink
 ] as const;
 
 /** Classify a status label into a semantic tone, or null when unknown. */
 export function statusTone(status: string): StatusTone | null {
   const label = status.toUpperCase();
+  if (/NO[\s_-]*FAULT|\bNFF\b/.test(label)) return "noFault";
+  if (/CLAIM/.test(label)) return "claim";
   // Negated matches ("NOT PASS", "CANNOT REPAIR") must win over the plain
   // "PASS" / "REPAIR" matches below.
   if (/(NOT|NO|UN)[\s_-]*PASS|FAIL|REJECT|ERROR|CANNOT|UNREPAIR|\bNG\b/.test(label)) {
@@ -72,8 +74,9 @@ export function statusTone(status: string): StatusTone | null {
 }
 
 /**
- * Semantic color for a status (PASS → primary, NOT PASS → error, WAIT /
- * RETURN → warning); unknown statuses fall back to a stable neutral color.
+ * Semantic color for a status (PASS → green, NOT PASS → red, CLAIM → blue,
+ * NO FAULT FOUND → violet, WAIT / RETURN → amber); unknown statuses fall
+ * back to a stable neutral color.
  */
 export function statusColor(status: string, fallbackIndex: number): string {
   const tone = statusTone(status);
