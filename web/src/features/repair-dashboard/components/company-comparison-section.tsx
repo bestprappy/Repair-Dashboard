@@ -41,7 +41,7 @@ export function CompanyComparisonSection({
           <CompanyStatBarChart
             data={byPassRate}
             metric="passRate"
-            color="var(--success)"
+            color="var(--primary)"
           />
         </ChartCard>
       </div>

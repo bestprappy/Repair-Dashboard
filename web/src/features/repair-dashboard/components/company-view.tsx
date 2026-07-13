@@ -47,7 +47,7 @@ export function CompanyView({ dataset, company }: CompanyViewProps) {
         <MetricCard
           label="Pass Rate"
           value={`${view.passRate.toFixed(1)}%`}
-          accent="green"
+          accent="blue"
           icon={CircleCheck}
         />
         <MetricCard
