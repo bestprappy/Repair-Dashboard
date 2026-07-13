@@ -34,6 +34,54 @@ export function paletteColor(index: number): string {
   return PALETTE[index % PALETTE.length];
 }
 
+/** Semantic tone of a status label. */
+export type StatusTone = "good" | "warning" | "bad";
+
+/** Global CSS status tokens (see globals.css) — reserved, never per-series. */
+const STATUS_TONE_COLORS: Record<StatusTone, string> = {
+  good: "var(--success)",
+  warning: "var(--warning)",
+  bad: "var(--error)",
+};
+
+/**
+ * Palette slots that don't read as a status hue (no red/green/amber), so an
+ * unmapped status can never impersonate PASS or FAIL next to a mapped one.
+ */
+const NEUTRAL_FALLBACK = [
+  PALETTE[0], // blue
+  PALETTE[4], // teal
+  PALETTE[5], // violet
+  PALETTE[6], // pink
+  PALETTE[7], // light blue
+] as const;
+
+/** Classify a status label into a semantic tone, or null when unknown. */
+export function statusTone(status: string): StatusTone | null {
+  const label = status.toUpperCase();
+  // Negated matches ("NOT PASS", "CANNOT REPAIR") must win over the plain
+  // "PASS" / "REPAIR" matches below.
+  if (/(NOT|NO|UN)[\s_-]*PASS|FAIL|REJECT|ERROR|CANNOT|UNREPAIR|\bNG\b/.test(label)) {
+    return "bad";
+  }
+  if (/PASS|SUCCESS|COMPLETE|DONE|GOOD|\bOK\b/.test(label)) return "good";
+  if (/WAIT|PENDING|HOLD|PROGRESS|PROCESS|REPAIR|REVIEW|CHECK/.test(label)) {
+    return "warning";
+  }
+  return null;
+}
+
+/**
+ * Semantic color for a status (PASS → success, NOT PASS → error, WAIT →
+ * warning); unknown statuses fall back to a stable neutral palette color.
+ */
+export function statusColor(status: string, fallbackIndex: number): string {
+  const tone = statusTone(status);
+  return tone
+    ? STATUS_TONE_COLORS[tone]
+    : NEUTRAL_FALLBACK[fallbackIndex % NEUTRAL_FALLBACK.length];
+}
+
 /** Parse a "Y&M" value like "2025M01" into a sortable "2025-01" key, or null. */
 export function parseYM(value: unknown): string | null {
   const match = String(value ?? "")

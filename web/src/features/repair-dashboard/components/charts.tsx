@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { formatCompact, paletteColor } from "../lib/transform";
+import { formatCompact, statusColor } from "../lib/transform";
 import type {
   CompanyStatDatum,
   GroupCountDatum,
@@ -68,7 +68,7 @@ export function StatusBarChart({ data }: { data: StatusDatum[] }) {
         />
         <Bar dataKey="count" radius={[5, 5, 0, 0]}>
           {data.map((entry, index) => (
-            <Cell key={entry.status} fill={paletteColor(index)} />
+            <Cell key={entry.status} fill={statusColor(entry.status, index)} />
           ))}
           <LabelList
             dataKey="count"
@@ -87,7 +87,7 @@ export function StatusBarChart({ data }: { data: StatusDatum[] }) {
 /** Donut chart of status ratio with an external percentage legend. */
 export function StatusPieChart({ data }: { data: StatusDatum[] }) {
   const items = data
-    .map((datum, index) => ({ ...datum, color: paletteColor(index) }))
+    .map((datum, index) => ({ ...datum, color: statusColor(datum.status, index) }))
     .filter((datum) => datum.count > 0);
 
   return (

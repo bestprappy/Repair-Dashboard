@@ -27,6 +27,10 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -64,6 +68,13 @@
   --accent: oklch(0.967 0.01 259);
   --accent-foreground: oklch(0.62 0.18 259);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Semantic status palette — reserved meanings (pass/fail/pending), never
+     reused as series colors. Contrast-checked on both card surfaces; warning
+     is sub-3:1 on light by design and must ship with a label or icon. */
+  --success: oklch(0.621 0.207 142.6);
+  --warning: oklch(0.811 0.164 78.5);
+  --error: oklch(0.575 0.186 25.2);
+  --info: oklch(0.656 0.17 260);
   --border: oklch(0.928 0.005 256);
   --input: oklch(0.928 0.005 256);
   --ring: oklch(0.62 0.18 259);
@@ -99,6 +110,11 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  /* Same status steps as light — validated ≥3:1 against the dark card. */
+  --success: oklch(0.621 0.207 142.6);
+  --warning: oklch(0.811 0.164 78.5);
+  --error: oklch(0.575 0.186 25.2);
+  --info: oklch(0.656 0.17 260);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);

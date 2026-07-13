@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 export type MetricAccent = "blue" | "green" | "amber" | "teal";
 
 const ACCENT_CHIP: Record<MetricAccent, string> = {
-  blue: "bg-[#4f8ef7]/12 text-[#4f8ef7]",
-  green: "bg-[#10b981]/12 text-[#10b981]",
-  amber: "bg-[#f59e0b]/12 text-[#f59e0b]",
+  blue: "bg-info/12 text-info",
+  green: "bg-success/12 text-success",
+  amber: "bg-warning/12 text-warning",
   teal: "bg-[#14b8a6]/12 text-[#14b8a6]",
 };
 

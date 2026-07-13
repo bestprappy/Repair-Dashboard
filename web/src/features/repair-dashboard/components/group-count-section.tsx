@@ -6,7 +6,7 @@ import { ChartCard, SectionHeading } from "@/components/chart-card";
 import { FilterPills } from "@/components/filter-pills";
 
 import { GroupCountChart } from "./charts";
-import { paletteColor } from "../lib/transform";
+import { statusColor } from "../lib/transform";
 import { selectStatusGroups } from "../lib/selectors";
 import type { CompanyData } from "../lib/types";
 
@@ -33,7 +33,7 @@ export function GroupCountSection({
   const cards = visible
     .map((status) => ({
       status,
-      color: paletteColor(allStatuses.indexOf(status)),
+      color: statusColor(status, allStatuses.indexOf(status)),
       groups: selectStatusGroups(data, status),
     }))
     .filter((card) => card.groups.length > 0);
