@@ -2,16 +2,16 @@ import type { ColumnMapping, CsvRow, RepairDataset } from "./types";
 
 /** Categorical palette shared by every chart. */
 export const PALETTE = [
-  "#4f8ef7",
-  "#34d399",
-  "#fbbf24",
-  "#f87171",
-  "#2dd4bf",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "#8b5cf6",
+  "#38bdf8",
   "#a78bfa",
-  "#f472b6",
-  "#60a5fa",
-  "#86efac",
-  "#fdba74",
+  "#6366f1",
+  "#22d3ee",
 ] as const;
 
 const MONTHS = [
@@ -116,6 +116,40 @@ export function formatCompact(value: number): string {
   return value.toLocaleString();
 }
 
+/** Consistent Thai-baht display for KPI and tooltip values. */
+export function formatCurrency(value: number, maximumFractionDigits = 0): string {
+  return `฿${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits,
+  }).format(value)}`;
+}
+
+/** Read an optionally-mapped column off a row, trimmed ("" when unmapped). */
+export function readColumn(row: CsvRow, column: string | undefined): string {
+  return column ? (row[column] ?? "").trim() : "";
+}
+
+/**
+ * Data Tab Sheet stages excluded from the dashboard entirely (SVM in/out
+ * movements are stock transfers, not repairs).
+ */
+const EXCLUDED_TAB_SHEETS = /SVM/i;
+
+/** Whether a Data Tab Sheet value marks a row the dashboard must ignore. */
+export function isExcludedTabSheet(value: string): boolean {
+  return EXCLUDED_TAB_SHEETS.test(value);
+}
+
+/**
+ * Split a combined cause cell ("Surge , Deteriorated") into normalized
+ * tokens. Case-folds English so "Surge" and "SURGE" merge; Thai is unchanged.
+ */
+export function splitCauseTokens(value: string): string[] {
+  return value
+    .split(/[,/]+/)
+    .map((token) => token.trim().replace(/\s+/g, " ").toUpperCase())
+    .filter(Boolean);
+}
+
 /** Build the aggregated dataset from raw CSV rows and a column mapping. */
 export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairDataset {
   const companies: RepairDataset["companies"] = {};
@@ -130,6 +164,9 @@ export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairData
     const ym = parseYM(row[mapping.ym]);
     if (!company || !status) continue;
 
+    const tabSheet = readColumn(row, mapping.tabSheet);
+    if (isExcludedTabSheet(tabSheet)) continue;
+
     statusSet.add(status);
 
     const data =
@@ -138,6 +175,10 @@ export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairData
         statusCount: {},
         statusGroups: {},
         monthly: {},
+        statusMonthly: {},
+        modelCount: {},
+        causeCount: {},
+        subCauseCount: {},
         amount: 0,
       });
 
@@ -149,10 +190,26 @@ export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairData
     groupStat.count += 1;
     groupStat.amount += amount;
 
+    if (ym) {
+      const byMonth = (data.statusMonthly[status] ??= {});
+      byMonth[ym] = (byMonth[ym] ?? 0) + 1;
+      monthSet.add(ym);
+    }
+
     if (ym && amount > 0) {
       const monthly = (data.monthly[group] ??= {});
       monthly[ym] = (monthly[ym] ?? 0) + amount;
-      monthSet.add(ym);
+    }
+
+    const model = readColumn(row, mapping.model);
+    if (model) data.modelCount[model] = (data.modelCount[model] ?? 0) + 1;
+
+    for (const token of splitCauseTokens(readColumn(row, mapping.cause))) {
+      data.causeCount[token] = (data.causeCount[token] ?? 0) + 1;
+    }
+
+    for (const token of splitCauseTokens(readColumn(row, mapping.subCause))) {
+      data.subCauseCount[token] = (data.subCauseCount[token] ?? 0) + 1;
     }
   }
 

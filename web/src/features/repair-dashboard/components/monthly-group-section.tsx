@@ -28,7 +28,7 @@ export function MonthlyGroupSection({
     : groups;
 
   return (
-    <section className="mb-8">
+    <section className="mb-10">
       <SectionHeading>{title}</SectionHeading>
       <FilterPills
         label="Group:"

@@ -16,13 +16,13 @@ export function StatusOverviewSection({
   statuses,
 }: StatusOverviewSectionProps) {
   return (
-    <section className="mb-8">
+    <section className="mb-10">
       <SectionHeading>{title}</SectionHeading>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard title="Count by Status" height={300}>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <ChartCard title="Records by status" height={300}>
           <StatusBarChart data={statuses} />
         </ChartCard>
-        <ChartCard title="Status Ratio" height={300}>
+        <ChartCard title="Share of repair records" height={300}>
           <StatusPieChart data={statuses} />
         </ChartCard>
       </div>

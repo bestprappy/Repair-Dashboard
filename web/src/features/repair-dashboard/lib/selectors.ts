@@ -1,3 +1,4 @@
+import { statusTone } from "./transform";
 import type { CompanyData, RepairDataset } from "./types";
 
 /** A status with its record count and palette color. */
@@ -90,11 +91,12 @@ export function selectAllCompanies(dataset: RepairDataset): AllCompaniesView {
     nav.push({ company, count: companyTotal });
 
     const passCount = data.statusCount["PASS"] ?? 0;
+    const completedCount = passCount + (data.statusCount["NOT PASS"] ?? 0);
     companyStats.push({
       company,
       total: companyTotal,
       passCount,
-      passRate: companyTotal > 0 ? (passCount / companyTotal) * 100 : 0,
+      passRate: completedCount > 0 ? (passCount / completedCount) * 100 : 0,
     });
 
     for (const [group, byMonth] of Object.entries(data.monthly)) {
@@ -147,16 +149,179 @@ export function selectCompany(
   }
 
   const passCount = data.statusCount["PASS"] ?? 0;
+  const completedCount = passCount + (data.statusCount["NOT PASS"] ?? 0);
 
   return {
     totalRecords,
     totalAmount: data.amount,
-    passRate: totalRecords > 0 ? (passCount / totalRecords) * 100 : 0,
+    passRate: completedCount > 0 ? (passCount / completedCount) * 100 : 0,
     topStatus,
     statuses: statusData(data.statusCount, dataset.allStatuses, totalRecords),
     activeStatuses: dataset.allStatuses.filter((s) => (data.statusCount[s] ?? 0) > 0),
     groups: monthlySeries(data.monthly, dataset.allMonths),
     data,
+  };
+}
+
+/** A labeled count for ranked bar charts and donuts. */
+export interface RankDatum {
+  label: string;
+  count: number;
+}
+
+/** One status's record count per month, aligned to dataset.allMonths. */
+export interface StatusMonthlySeries {
+  status: string;
+  values: number[];
+  total: number;
+}
+
+/** Extra chart slices derived from the optional columns. */
+export interface BreakdownView {
+  /** Stacked monthly record counts per status ("OTHER" holds rare ones). */
+  statusMonthly: StatusMonthlySeries[];
+  /** Total records per month, aligned to dataset.allMonths. */
+  monthTotals: number[];
+  topModels: RankDatum[];
+  topGroups: RankDatum[];
+  topCauses: RankDatum[];
+  topSubCauses: RankDatum[];
+  /** Percentage of records that report a cause / sub cause. */
+  causeCoveragePct: number;
+  subCauseCoveragePct: number;
+}
+
+/** Legend label for statuses folded together in the stacked monthly chart. */
+export const OTHER_STATUS = "OTHER";
+
+/** Statuses below this share of records fold into OTHER in the stack. */
+const MIN_STACK_SHARE = 0.01;
+
+/**
+ * Fixed stack order chosen so adjacent status colors stay distinguishable
+ * for color-vision-deficient readers (green → blue → amber → red).
+ */
+const TONE_STACK_RANK: Record<string, number> = {
+  good: 0,
+  claim: 1,
+  warning: 2,
+  noFault: 3,
+  bad: 4,
+};
+
+function statusStackRank(status: string): number {
+  const tone = statusTone(status);
+  return tone ? TONE_STACK_RANK[tone] : 5;
+}
+
+function mergeCounts(maps: Record<string, number>[]): Map<string, number> {
+  const merged = new Map<string, number>();
+  for (const map of maps) {
+    for (const [label, count] of Object.entries(map)) {
+      merged.set(label, (merged.get(label) ?? 0) + count);
+    }
+  }
+  return merged;
+}
+
+function rankTop(merged: Map<string, number>, limit: number): RankDatum[] {
+  return [...merged.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+function sumCounts(merged: Map<string, number>): number {
+  let sum = 0;
+  for (const count of merged.values()) sum += count;
+  return sum;
+}
+
+/**
+ * Build the breakdown slices for the whole dataset or a single company.
+ * Every chart tolerates the optional columns being unmapped (empty arrays).
+ */
+export function selectBreakdown(
+  dataset: RepairDataset,
+  company?: string,
+): BreakdownView {
+  const companyData = company
+    ? dataset.companies[company]
+      ? [dataset.companies[company]]
+      : []
+    : Object.values(dataset.companies);
+  const { allMonths } = dataset;
+
+  let totalRecords = 0;
+  const statusTotals: Record<string, number> = {};
+  const statusMonthly: Record<string, Record<string, number>> = {};
+  for (const data of companyData) {
+    for (const [status, count] of Object.entries(data.statusCount)) {
+      statusTotals[status] = (statusTotals[status] ?? 0) + count;
+      totalRecords += count;
+    }
+    for (const [status, byMonth] of Object.entries(data.statusMonthly)) {
+      const target = (statusMonthly[status] ??= {});
+      for (const [month, count] of Object.entries(byMonth)) {
+        target[month] = (target[month] ?? 0) + count;
+      }
+    }
+  }
+
+  const present = dataset.allStatuses.filter((s) => (statusTotals[s] ?? 0) > 0);
+  const major = present
+    .filter((s) => statusTotals[s] >= totalRecords * MIN_STACK_SHARE)
+    .sort(
+      (a, b) =>
+        statusStackRank(a) - statusStackRank(b) ||
+        statusTotals[b] - statusTotals[a],
+    );
+  const minor = present.filter((s) => !major.includes(s));
+
+  const monthlySeries: StatusMonthlySeries[] = major.map((status) => {
+    const byMonth = statusMonthly[status] ?? {};
+    const values = allMonths.map((month) => byMonth[month] ?? 0);
+    return { status, values, total: values.reduce((a, b) => a + b, 0) };
+  });
+  if (minor.length > 0) {
+    const values = allMonths.map((month) =>
+      minor.reduce((sum, s) => sum + (statusMonthly[s]?.[month] ?? 0), 0),
+    );
+    monthlySeries.push({
+      status: OTHER_STATUS,
+      values,
+      total: values.reduce((a, b) => a + b, 0),
+    });
+  }
+  const activeSeries = monthlySeries.filter((series) => series.total > 0);
+  const monthTotals = allMonths.map((_, index) =>
+    activeSeries.reduce((sum, series) => sum + series.values[index], 0),
+  );
+
+  const groupCounts = companyData.map((data) => {
+    const counts: Record<string, number> = {};
+    for (const groups of Object.values(data.statusGroups)) {
+      for (const [group, stat] of Object.entries(groups)) {
+        counts[group] = (counts[group] ?? 0) + stat.count;
+      }
+    }
+    return counts;
+  });
+
+  const causes = mergeCounts(companyData.map((data) => data.causeCount));
+  const subCauses = mergeCounts(companyData.map((data) => data.subCauseCount));
+  const pctOf = (part: number) =>
+    totalRecords > 0 ? (part / totalRecords) * 100 : 0;
+
+  return {
+    statusMonthly: activeSeries,
+    monthTotals,
+    topModels: rankTop(mergeCounts(companyData.map((d) => d.modelCount)), 10),
+    topGroups: rankTop(mergeCounts(groupCounts), 10),
+    topCauses: rankTop(causes, 10),
+    topSubCauses: rankTop(subCauses, 10),
+    causeCoveragePct: pctOf(sumCounts(causes)),
+    subCauseCoveragePct: pctOf(sumCounts(subCauses)),
   };
 }
 

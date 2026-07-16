@@ -4,8 +4,8 @@ A migration of the original single-file `index.html` dashboard to **Next.js 16
 (App Router)** with **shadcn/ui**, **Tailwind v4**, **Jotai** (UI state),
 **TanStack Query** (provider scaffolding), and **Recharts** for visualization.
 
-Everything still runs **client-side** — your CSV is parsed in the browser with
-PapaParse and never uploaded anywhere.
+CSV parsing runs **client-side** with PapaParse, so uploaded files are never sent
+to the application server. Authentication is enforced server-side.
 
 ## Flow
 
@@ -26,6 +26,25 @@ npm run dev      # http://localhost:3000
 npm run build    # production build
 npm run start    # serve the production build
 ```
+
+## Password protection and deployment
+
+Create `web/.env.local` for local development:
+
+```dotenv
+AUTH_PASSWORD=use-a-long-unique-random-password
+NEXT_PUBLIC_SHEET_URL=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit
+```
+
+The protected app requires a Next.js server and cannot be deployed securely to
+GitHub Pages. Deploy the `web` directory to a server-capable host such as Vercel,
+Netlify, or a Node server and set `AUTH_PASSWORD` in the hosting provider's
+environment-variable settings. Never prefix it with `NEXT_PUBLIC_`, commit
+`.env.local`, or place the real password in a GitHub Actions workflow.
+
+Login creates an eight-hour signed `HttpOnly`, `SameSite=Strict` cookie. Password
+comparison and session verification happen only on the server. CSV parsing still
+happens in the browser and uploaded files are not sent to the application server.
 
 ## Structure
 

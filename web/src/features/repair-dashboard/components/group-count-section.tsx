@@ -39,8 +39,8 @@ export function GroupCountSection({
     .filter((card) => card.groups.length > 0);
 
   return (
-    <section className="mb-8">
-      <SectionHeading>Group Count by Status</SectionHeading>
+    <section className="mb-10">
+      <SectionHeading>Equipment groups by status</SectionHeading>
       <FilterPills
         label="Status:"
         options={activeStatuses}

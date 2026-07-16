@@ -1,52 +1,89 @@
 "use client";
 
-import { Banknote, Boxes, FileStack } from "lucide-react";
+import { useMemo } from "react";
 
+import { Banknote, Building2, CircleCheck, FileStack } from "lucide-react";
+
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { MetricCard } from "@/components/metric-card";
 
+import { CauseSection } from "./cause-section";
 import { CompanyComparisonSection } from "./company-comparison-section";
+import { EquipmentBreakdownSection } from "./equipment-breakdown-section";
 import { MonthlyGroupSection } from "./monthly-group-section";
+import { MonthlyStatusSection } from "./monthly-status-section";
 import { StatusOverviewSection } from "./status-overview-section";
-import { formatYM } from "../lib/transform";
-import { selectAllCompanies } from "../lib/selectors";
+import { selectAllCompanies, selectBreakdown } from "../lib/selectors";
+import { formatCurrency, formatYM } from "../lib/transform";
 import type { RepairDataset } from "../lib/types";
 
-/** Aggregate dashboard across every company. */
+/** Aggregate operational dashboard across every company. */
 export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
-  const view = selectAllCompanies(dataset);
+  const view = useMemo(() => selectAllCompanies(dataset), [dataset]);
+  const breakdown = useMemo(() => selectBreakdown(dataset), [dataset]);
   const monthLabels = dataset.allMonths.map(formatYM);
+  const passCount = view.statuses.find((item) => item.status === "PASS")?.count ?? 0;
+  const notPassCount =
+    view.statuses.find((item) => item.status === "NOT PASS")?.count ?? 0;
+  const completed = passCount + notPassCount;
+  const passRate = completed > 0 ? (passCount / completed) * 100 : null;
 
   return (
     <div>
-      <div className="mb-7 grid grid-cols-2 gap-3.5 sm:grid-cols-3">
+      <DashboardPageHeader
+        eyebrow="Operations overview"
+        title="Repair overview"
+        description="Monitor repair volume, completion quality, equipment mix, and cost across every service company."
+        months={dataset.allMonths}
+        meta={`${view.companyCount} companies`}
+      />
+
+      <div className="mb-7 grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Total Records"
+          label="Total repair records"
           value={view.grandTotal.toLocaleString()}
-          sub={`${view.companyCount} companies`}
+          sub={`${view.groups.length.toLocaleString()} equipment groups`}
           accent="blue"
           icon={FileStack}
+          featured
         />
         <MetricCard
-          label="Total Amount"
-          value={`฿${view.grandAmount.toLocaleString()}`}
-          accent="teal"
+          label="Total repair amount"
+          value={formatCurrency(view.grandAmount)}
+          sub="Across priced repair rows"
+          accent="violet"
           icon={Banknote}
         />
         <MetricCard
-          label="Groups Tracked"
-          value={view.groups.length.toLocaleString()}
-          accent="amber"
-          icon={Boxes}
+          label="Completed pass rate"
+          value={passRate == null ? "—" : `${passRate.toFixed(1)}%`}
+          sub={`${completed.toLocaleString()} completed records`}
+          accent="green"
+          icon={CircleCheck}
+        />
+        <MetricCard
+          label="Service companies"
+          value={view.companyCount.toLocaleString()}
+          sub={`${monthLabels.length.toLocaleString()} reporting periods`}
+          accent="blue"
+          icon={Building2}
         />
       </div>
 
+      <MonthlyStatusSection
+        title="Repair volume over time"
+        monthLabels={monthLabels}
+        view={breakdown}
+      />
       <StatusOverviewSection
-        title="Overall Status Distribution (All Companies)"
+        title="Current status mix"
         statuses={view.statuses}
       />
       <CompanyComparisonSection companyStats={view.companyStats} />
+      <EquipmentBreakdownSection view={breakdown} />
+      <CauseSection view={breakdown} />
       <MonthlyGroupSection
-        title="Monthly Total Amount by Group (All Companies)"
+        title="Repair amount by equipment group"
         monthLabels={monthLabels}
         groups={view.groups}
       />

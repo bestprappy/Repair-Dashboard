@@ -8,6 +8,12 @@ export interface ColumnMapping {
   ym: string;
   amount: string;
   equipment?: string;
+  model?: string;
+  tabSheet?: string;
+  cause?: string;
+  subCause?: string;
+  serial?: string;
+  material?: string;
 }
 
 /** Aggregated count + amount for a single equipment group within a status. */
@@ -24,6 +30,14 @@ export interface CompanyData {
   statusGroups: Record<string, Record<string, GroupStat>>;
   /** group -> "YYYY-MM" -> summed amount (amount > 0 and valid month only). */
   monthly: Record<string, Record<string, number>>;
+  /** status -> "YYYY-MM" -> record count (independent of amount). */
+  statusMonthly: Record<string, Record<string, number>>;
+  /** Record count per model. */
+  modelCount: Record<string, number>;
+  /** Record count per reported cause (sparse column). */
+  causeCount: Record<string, number>;
+  /** Record count per reported sub cause (sparse column). */
+  subCauseCount: Record<string, number>;
   /** Total amount across every row, date-independent. */
   amount: number;
 }
@@ -45,5 +59,11 @@ export type CsvRow = Record<string, string>;
 /** Stage of the upload -> map -> dashboard flow. */
 export type DashboardStage = "upload" | "map" | "loading" | "dash";
 
+/** Where the current dataset comes from. */
+export type DataSource = "live" | "upload";
+
 /** Selected view: aggregate of all companies or a single company name. */
 export type DashboardView = "all" | (string & {});
+
+/** Sentinel view name for the in-depth analysis page. */
+export const INSIGHTS_VIEW = "__insights__";

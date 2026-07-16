@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Repair Analytics Dashboard",
+  title: "Repair Analytics | Inventory Operations",
   description:
-    "Upload repair CSV data to explore status distributions, group breakdowns, and monthly trends.",
+    "Live repair inventory operations, quality trends, and equipment analytics.",
 };
 
 export default function RootLayout({
@@ -32,7 +32,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>
       </body>
     </html>

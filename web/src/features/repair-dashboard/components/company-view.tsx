@@ -1,14 +1,20 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { Activity, Banknote, CircleCheck, FileStack } from "lucide-react";
 
+import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { MetricCard } from "@/components/metric-card";
 
+import { CauseSection } from "./cause-section";
+import { EquipmentBreakdownSection } from "./equipment-breakdown-section";
 import { GroupCountSection } from "./group-count-section";
 import { MonthlyGroupSection } from "./monthly-group-section";
+import { MonthlyStatusSection } from "./monthly-status-section";
 import { StatusOverviewSection } from "./status-overview-section";
-import { formatYM } from "../lib/transform";
-import { selectCompany } from "../lib/selectors";
+import { selectBreakdown, selectCompany } from "../lib/selectors";
+import { formatCurrency, formatYM } from "../lib/transform";
 import type { RepairDataset } from "../lib/types";
 
 interface CompanyViewProps {
@@ -16,58 +22,79 @@ interface CompanyViewProps {
   company: string;
 }
 
-/** Detailed dashboard for a single company. */
+/** Detailed operational dashboard for a single repair company. */
 export function CompanyView({ dataset, company }: CompanyViewProps) {
-  const view = selectCompany(dataset, company);
+  const view = useMemo(() => selectCompany(dataset, company), [dataset, company]);
+  const breakdown = useMemo(
+    () => selectBreakdown(dataset, company),
+    [dataset, company],
+  );
   const monthLabels = dataset.allMonths.map(formatYM);
 
   if (!view) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
-        No data for “{company}”.
-      </p>
+      <div className="rounded-xl border bg-card py-14 text-center text-sm text-muted-foreground">
+        No repair data is available for “{company}”.
+      </div>
     );
   }
 
   return (
     <div>
-      <div className="mb-7 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+      <DashboardPageHeader
+        eyebrow="Company performance"
+        title={company}
+        description="Review repair throughput, completion quality, equipment demand, and reported failure causes for this company."
+        months={dataset.allMonths}
+        meta={`${view.activeStatuses.length} active statuses`}
+      />
+
+      <div className="mb-7 grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Total Records"
+          label="Total repair records"
           value={view.totalRecords.toLocaleString()}
           accent="blue"
           icon={FileStack}
+          featured
         />
         <MetricCard
-          label="Total Amount"
-          value={`฿${view.totalAmount.toLocaleString()}`}
-          accent="teal"
+          label="Total repair amount"
+          value={formatCurrency(view.totalAmount)}
+          accent="violet"
           icon={Banknote}
         />
         <MetricCard
-          label="Pass Rate"
+          label="Completed pass rate"
           value={`${view.passRate.toFixed(1)}%`}
+          sub="PASS ÷ completed repairs"
           accent="green"
           icon={CircleCheck}
         />
         <MetricCard
-          label="Top Status"
+          label="Most common status"
           value={view.topStatus?.status ?? "—"}
-          sub={`${(view.topStatus?.count ?? 0).toLocaleString()} cases`}
-          accent="amber"
+          sub={`${(view.topStatus?.count ?? 0).toLocaleString()} records`}
+          accent="violet"
           icon={Activity}
           compactValue
         />
       </div>
 
-      <StatusOverviewSection title="Status Overview" statuses={view.statuses} />
+      <MonthlyStatusSection
+        title="Repair volume over time"
+        monthLabels={monthLabels}
+        view={breakdown}
+      />
+      <StatusOverviewSection title="Current status mix" statuses={view.statuses} />
       <GroupCountSection
         data={view.data}
         allStatuses={dataset.allStatuses}
         activeStatuses={view.activeStatuses}
       />
+      <EquipmentBreakdownSection view={breakdown} />
+      <CauseSection view={breakdown} />
       <MonthlyGroupSection
-        title="Monthly Amount by Group"
+        title="Repair amount by equipment group"
         monthLabels={monthLabels}
         groups={view.groups}
       />

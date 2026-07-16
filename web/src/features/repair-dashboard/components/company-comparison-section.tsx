@@ -27,17 +27,21 @@ export function CompanyComparisonSection({
   const byPassRate = [...companyStats].sort((a, b) => b.passRate - a.passRate);
 
   return (
-    <section className="mb-8">
-      <SectionHeading>Company Comparison</SectionHeading>
+    <section className="mb-10">
+      <SectionHeading>Company comparison</SectionHeading>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ChartCard title="Total Repairs by Company" height={height}>
+        <ChartCard title="Repair records by company" height={height}>
           <CompanyStatBarChart
             data={companyStats}
             metric="total"
             color={paletteColor(0)}
           />
         </ChartCard>
-        <ChartCard title="PASS Rate by Company" height={height}>
+        <ChartCard
+          title="Completed pass rate by company"
+          subtitle="PASS ÷ (PASS + NOT PASS)"
+          height={height}
+        >
           <CompanyStatBarChart
             data={byPassRate}
             metric="passRate"

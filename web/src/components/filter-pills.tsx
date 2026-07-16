@@ -16,10 +16,24 @@ export function FilterPills({ label, options, value, onChange }: FilterPillsProp
   if (options.length === 0) return null;
 
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2">
-      <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="mb-4 flex max-w-full items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <span className="mr-0.5 shrink-0 text-xs font-medium text-muted-foreground">
         {label}
       </span>
+      <button
+        type="button"
+        aria-pressed={value === null}
+        onClick={() => onChange(null)}
+        className={cn(
+          "h-8 shrink-0 rounded-lg border px-3 text-xs font-medium transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          value === null
+            ? "border-primary/20 bg-primary/10 text-primary"
+            : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
+        )}
+      >
+        All
+      </button>
       {options.map((option) => {
         const active = option === value;
         return (
@@ -29,11 +43,11 @@ export function FilterPills({ label, options, value, onChange }: FilterPillsProp
             aria-pressed={active}
             onClick={() => onChange(active ? null : option)}
             className={cn(
-              "cursor-pointer rounded-full border px-3.5 py-1 text-xs font-medium transition-colors",
+              "h-8 shrink-0 cursor-pointer rounded-lg border px-3 text-xs font-medium transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               active
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-muted/60 text-muted-foreground hover:border-primary hover:text-primary",
+                ? "border-primary/20 bg-primary/10 text-primary"
+                : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
             )}
           >
             {option}

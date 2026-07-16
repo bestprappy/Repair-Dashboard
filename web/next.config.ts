@@ -1,14 +1,22 @@
 import type { NextConfig } from "next";
 
-// On GitHub Pages the project site is served from /<repo>. The workflow sets
-// NEXT_PUBLIC_BASE_PATH to "/Repair-Dashboard"; locally it stays empty.
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-
 const nextConfig: NextConfig = {
-  output: "export", // fully static export for GitHub Pages
-  basePath,
-  images: { unoptimized: true },
-  trailingSlash: true,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

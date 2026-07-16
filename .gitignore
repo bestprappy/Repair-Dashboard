@@ -3,9 +3,15 @@
 *.xlsx
 *.xls
 
+# Vercel CLI project link (created by `vercel link` / `vercel pull`)
+.vercel
+
 # Backend (not needed for static hosting)
 main.py
 test_request.py
 requirements.txt
 __pycache__/
 .venv/
+
+.vercel
+.env*
