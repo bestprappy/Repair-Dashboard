@@ -539,12 +539,41 @@ function CompanyRecommendationCard({
   );
 }
 
+function recommendationMethod(
+  analysis: CompanyRecommendationAnalysis,
+  repeatMode: ModelCompanyPerformance["repeatMode"],
+): string {
+  const outcomeRows =
+    analysis.stageMode === "repair-stages" ? "output-stage" : "all matching";
+  const amountRows =
+    analysis.stageMode === "repair-stages" ? "output" : "matching";
+  const repeatMethod =
+    repeatMode === "input-events"
+      ? "It uses distinct Material + Serial input events and is shown only at 80% identifier coverage."
+      : repeatMode === "paired-row-estimate"
+        ? "With no recognizable repair stage, it estimates cycles from paired rows and is shown only at 80% identifier coverage."
+        : "It is unavailable without mapped Material and Serial columns.";
+
+  return `Method: PASS uses ${outcomeRows} rows and PASS / (PASS + NOT PASS). It is suppressed below 10 verdicts and needs at least ${analysis.minimumVerdicts} verdicts for ranking. Eligible companies are ranked only by the 95% Wilson lower bound. Repeat repair is descriptive and never changes the ranking. ${repeatMethod} Median amount uses positive PASS ${amountRows} amounts, is suppressed below five priced rows, stays descriptive, and never changes the ranking. Group and model labels are matched exactly as written in the source sheet; repair records remain sheet rows rather than deduplicated repair cycles.`;
+}
+
 function repeatEvidenceDetail(
   company: ModelCompanyPerformance,
   includeCounts = false,
 ): string {
   const coverage = company.identifierCoveragePct;
-  if (coverage == null) return "no repair-input records";
+  if (
+    company.repeatUnavailableReason === "identifier-columns-unavailable"
+  ) {
+    return "Material / Serial columns unavailable";
+  }
+  if (company.repeatUnavailableReason === "no-input-records") {
+    return "no repair-input records";
+  }
+  if (company.repeatUnavailableReason === "no-trackable-units") {
+    return "no trackable Material + Serial units";
+  }
+  if (coverage == null) return "repeat evidence unavailable";
   if (company.repeatRate == null) {
     return `${coverage.toFixed(1)}% identifier coverage · minimum 80%`;
   }
@@ -552,13 +581,20 @@ function repeatEvidenceDetail(
   const counts = includeCounts
     ? `${company.repeatUnits.toLocaleString()}/${company.trackedUnits.toLocaleString()} tracked units · `
     : "";
-  const readiness = company.repeatComparable
-    ? "eligible for exact-tie check"
-    : "descriptive only (<100 units)";
-  return `${counts}${coverage.toFixed(1)}% ID coverage · ${readiness}`;
+  const estimate =
+    company.repeatMode === "paired-row-estimate"
+      ? " · estimated from paired rows"
+      : "";
+  return `${counts}${coverage.toFixed(1)}% ID coverage${estimate} · descriptive only`;
 }
 
 function amountEvidenceDetail(company: ModelCompanyPerformance): string {
+  if (company.amountUnavailableReason === "amount-column-unavailable") {
+    return "Amount column unavailable";
+  }
+  if (company.amountUnavailableReason === "no-completed-pass-rows") {
+    return "no completed PASS rows";
+  }
   const coverage =
     company.amountCoveragePct == null
       ? "no completed PASS rows"
@@ -567,8 +603,7 @@ function amountEvidenceDetail(company: ModelCompanyPerformance): string {
     return `${company.pricedRecords.toLocaleString()} priced PASS rows · ${coverage} · minimum 5`;
   }
 
-  const readiness = company.amountComparable ? "" : " · descriptive only";
-  return `${company.pricedRecords.toLocaleString()} priced PASS rows · ${coverage}${readiness}`;
+  return `${company.pricedRecords.toLocaleString()} priced PASS rows · ${coverage} · descriptive only`;
 }
 
 function RecommendationSummary({
@@ -608,7 +643,7 @@ function RecommendationSummary({
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <EvidenceMetric
-          label="Completed PASS"
+          label="PASS rate (completed)"
           value={
             company.passRate == null ? "—" : `${company.passRate.toFixed(1)}%`
           }
