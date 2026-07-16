@@ -55,6 +55,7 @@ const FIELD_KEYWORDS: Record<keyof ColumnMapping, string[]> = {
   subCause: ["sub cause", "subcause", "sub_cause"],
   serial: ["serial"],
   material: ["material"],
+  date: ["date", "transaction date", "repair date"],
 };
 
 /** Guess an initial mapping from the available CSV headers. */
@@ -84,6 +85,7 @@ export function guessMapping(fields: string[]): ColumnMapping {
     subCause: pick("subCause") || "",
     serial: pick("serial") || "",
     material: pick("material") || "",
+    date: pick("date") || "",
   };
 }
 

@@ -39,6 +39,7 @@ const FIELDS: { key: keyof ColumnMapping; label: string; optional?: boolean }[] 
   { key: "subCause", label: "Sub cause", optional: true },
   { key: "serial", label: "Serial number", optional: true },
   { key: "material", label: "Material", optional: true },
+  { key: "date", label: "Lifecycle date", optional: true },
 ];
 
 const REQUIRED_FIELDS = FIELDS.filter((field) => !field.optional).map(

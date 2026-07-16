@@ -420,10 +420,19 @@ interface RankBarChartProps {
   color: string;
   /** Tooltip name for the value, e.g. "Records". */
   name: string;
+  /** Optional selection for relationship drill-downs. */
+  selectedLabel?: string;
+  onSelect?: (label: string) => void;
 }
 
 /** Horizontal top-N bars for one labeled count series (models, causes…). */
-export function RankBarChart({ data, color, name }: RankBarChartProps) {
+export function RankBarChart({
+  data,
+  color,
+  name,
+  selectedLabel,
+  onSelect,
+}: RankBarChartProps) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
@@ -464,6 +473,19 @@ export function RankBarChart({ data, color, name }: RankBarChartProps) {
           maxBarSize={22}
           isAnimationActive={false}
         >
+          {onSelect
+            ? data.map((entry) => (
+                <Cell
+                  key={entry.label}
+                  fill={color}
+                  fillOpacity={
+                    !selectedLabel || selectedLabel === entry.label ? 1 : 0.38
+                  }
+                  cursor="pointer"
+                  onClick={() => onSelect(entry.label)}
+                />
+              ))
+            : null}
           <LabelList
             dataKey="count"
             position="right"

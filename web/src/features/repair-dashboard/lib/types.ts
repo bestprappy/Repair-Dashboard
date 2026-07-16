@@ -14,6 +14,8 @@ export interface ColumnMapping {
   subCause?: string;
   serial?: string;
   material?: string;
+  /** Row-level lifecycle date used to measure repair turnaround. */
+  date?: string;
 }
 
 /** Aggregated count + amount for a single equipment group within a status. */

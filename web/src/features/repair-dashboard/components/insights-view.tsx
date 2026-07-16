@@ -10,6 +10,7 @@ import { DataExplorerSection } from "./data-explorer-section";
 import { GroupModelRelationSection } from "./group-model-relation-section";
 import { ModelDeepDiveSection } from "./model-deep-dive-section";
 import { RepeatRepairsSection } from "./repeat-repairs-section";
+import { SlaSection } from "./sla-section";
 import { filterAnalyzedRows } from "../lib/insights";
 import type { RepairDataset } from "../lib/types";
 import { csvFieldsAtom, mappingAtom, rawRowsAtom } from "../state/atoms";
@@ -34,6 +35,7 @@ export function InsightsView({ dataset }: { dataset: RepairDataset }) {
         months={dataset.allMonths}
         meta={`${analyzedRows.length.toLocaleString()} analyzed records`}
       />
+      <SlaSection rows={analyzedRows} mapping={mapping} />
       <GroupModelRelationSection rows={analyzedRows} mapping={mapping} />
       <ModelDeepDiveSection rows={analyzedRows} mapping={mapping} />
       <RepeatRepairsSection rows={analyzedRows} mapping={mapping} />

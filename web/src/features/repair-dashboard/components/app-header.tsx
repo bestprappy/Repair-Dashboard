@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ThemeColorMenu } from "@/components/theme-color-menu";
 
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
 import { INSIGHTS_VIEW } from "../lib/types";
@@ -223,6 +224,8 @@ export function AppHeader() {
             <span className="hidden xl:inline">Upload again</span>
           </Button>
         ) : null}
+
+        <ThemeColorMenu />
 
         <Button
           type="button"

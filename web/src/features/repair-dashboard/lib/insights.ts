@@ -84,6 +84,22 @@ interface GroupModelAccumulator {
   models: Map<string, ModelRelationAccumulator>;
 }
 
+function groupModelKey(group: string, model: string): string {
+  return JSON.stringify([group, model]);
+}
+
+function isInputStage(stage: string): boolean {
+  return /input/i.test(stage);
+}
+
+function isOutputStage(stage: string): boolean {
+  return /output/i.test(stage);
+}
+
+function isRecognizedRepairStage(stage: string): boolean {
+  return isInputStage(stage) || isOutputStage(stage);
+}
+
 /**
  * Relate Group Equipment to Model directly from row-level sheet records.
  * Groups are ordered by activity; each group exposes its top ten models.
@@ -93,6 +109,23 @@ export function selectGroupModelRelations(
   mapping: ColumnMapping,
 ): GroupModelRelation[] {
   if (!mapping.group || !mapping.model) return [];
+
+  // Some legacy rows have no stage. Once a group/model cohort contains a
+  // recognizable repair stage, only its output rows contribute outcomes.
+  const stagedPairs = new Set<string>();
+  if (mapping.tabSheet) {
+    for (const row of rows) {
+      const group = readColumn(row, mapping.group);
+      const model = readColumn(row, mapping.model);
+      if (
+        group &&
+        model &&
+        isRecognizedRepairStage(readColumn(row, mapping.tabSheet))
+      ) {
+        stagedPairs.add(groupModelKey(group, model));
+      }
+    }
+  }
 
   const groups = new Map<string, GroupModelAccumulator>();
 
@@ -132,14 +165,20 @@ export function selectGroupModelRelations(
         );
       }
 
-      const status = readColumn(row, mapping.status).toUpperCase();
-      if (status === "PASS") modelAggregate.pass += 1;
-      if (status === "NOT PASS") modelAggregate.notPass += 1;
+      const pairUsesStages = stagedPairs.has(groupModelKey(group, model));
+      const contributesOutput =
+        !pairUsesStages ||
+        isOutputStage(readColumn(row, mapping.tabSheet));
+      if (contributesOutput) {
+        const status = readColumn(row, mapping.status).toUpperCase();
+        if (status === "PASS") modelAggregate.pass += 1;
+        if (status === "NOT PASS") modelAggregate.notPass += 1;
 
-      const amount = toNumber(row[mapping.amount]);
-      if (amount > 0) {
-        modelAggregate.reportedAmount += amount;
-        modelAggregate.pricedRecords += 1;
+        const amount = toNumber(row[mapping.amount]);
+        if (amount > 0) {
+          modelAggregate.reportedAmount += amount;
+          modelAggregate.pricedRecords += 1;
+        }
       }
 
       aggregate.models.set(model, modelAggregate);
@@ -196,6 +235,307 @@ export function selectGroupModelRelations(
         b.totalRecords - a.totalRecords ||
         a.group.localeCompare(b.group, undefined, { sensitivity: "base" }),
     );
+}
+
+/** Minimum PASS/NOT PASS verdicts required for a company recommendation. */
+export const MIN_RECOMMENDATION_VERDICTS = 30;
+
+export type EvidenceStrength =
+  | "Strong"
+  | "Moderate"
+  | "Limited"
+  | "Insufficient";
+
+export type RepeatEvidenceMode =
+  | "input-events"
+  | "paired-row-estimate"
+  | "unavailable";
+
+export type RepeatUnavailableReason =
+  | "identifier-columns-unavailable"
+  | "no-input-records"
+  | "low-identifier-coverage"
+  | "no-trackable-units"
+  | null;
+
+export type AmountUnavailableReason =
+  | "amount-column-unavailable"
+  | "no-completed-pass-rows"
+  | "too-few-priced-pass-rows"
+  | null;
+
+/** One company's evidence for a selected equipment group + model. */
+export interface ModelCompanyPerformance {
+  company: string;
+  repairRecords: number;
+  passCount: number;
+  completedVerdicts: number;
+  passRate: number | null;
+  /** 95% Wilson lower bound used to rank eligible companies. */
+  confidenceAdjustedPass: number | null;
+  trackedUnits: number;
+  repeatUnits: number;
+  repeatRate: number | null;
+  identifierCoveragePct: number | null;
+  repeatMode: RepeatEvidenceMode;
+  repeatUnavailableReason: RepeatUnavailableReason;
+  medianAmount: number | null;
+  pricedRecords: number;
+  amountCoveragePct: number | null;
+  amountUnavailableReason: AmountUnavailableReason;
+  evidence: EvidenceStrength;
+  eligible: boolean;
+}
+
+/** Transparent recommendation and all-company comparison for one model. */
+export interface CompanyRecommendationAnalysis {
+  group: string;
+  model: string;
+  minimumVerdicts: number;
+  companies: ModelCompanyPerformance[];
+  recommended: ModelCompanyPerformance | null;
+}
+
+interface RecommendationUnitAccumulator {
+  rowCount: number;
+  inputRows: number;
+}
+
+interface CompanyPerformanceAccumulator {
+  repairRecords: number;
+  pass: number;
+  notPass: number;
+  amounts: number[];
+  units: Map<string, RecommendationUnitAccumulator>;
+  inputRecords: number;
+  trackableInputRecords: number;
+}
+
+/** Conservative PASS estimate so tiny samples cannot win on 100% alone. */
+function wilsonLowerBound(pass: number, total: number): number | null {
+  if (total === 0) return null;
+  const z = 1.96;
+  const zSquared = z * z;
+  const proportion = pass / total;
+  const denominator = 1 + zSquared / total;
+  const center = proportion + zSquared / (2 * total);
+  const margin =
+    z *
+    Math.sqrt(
+      (proportion * (1 - proportion) + zSquared / (4 * total)) / total,
+    );
+  return ((center - margin) / denominator) * 100;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function evidenceStrength(
+  completedVerdicts: number,
+): EvidenceStrength {
+  if (completedVerdicts >= 100) return "Strong";
+  if (completedVerdicts >= MIN_RECOMMENDATION_VERDICTS) return "Moderate";
+  if (completedVerdicts > 0) return "Limited";
+  return "Insufficient";
+}
+
+/**
+ * Compare servicing companies for one exact group/model pair. Eligible
+ * companies are ranked by the 95% Wilson lower bound of completed PASS, then
+ * larger completed sample. Repeat and amount evidence remain descriptive.
+ */
+export function selectCompanyRecommendation(
+  rows: CsvRow[],
+  mapping: ColumnMapping,
+  group: string,
+  model: string,
+): CompanyRecommendationAnalysis | null {
+  if (!mapping.group || !mapping.model || !mapping.company) return null;
+
+  const matchingRows = rows.filter(
+    (row) =>
+      readColumn(row, mapping.group) === group &&
+      readColumn(row, mapping.model) === model,
+  );
+  if (matchingRows.length === 0) return null;
+
+  // Once either recognized repair stage exists in this exact cohort, the
+  // unavailable side stays unavailable. Only a cohort with no stage signal at
+  // all uses the legacy paired-row estimate.
+  const usesRepairStages =
+    Boolean(mapping.tabSheet) &&
+    matchingRows.some((row) =>
+      isRecognizedRepairStage(readColumn(row, mapping.tabSheet)),
+    );
+  const identifiersMapped = Boolean(mapping.serial && mapping.material);
+  const amountMapped = Boolean(mapping.amount);
+  const repeatMode: RepeatEvidenceMode = !identifiersMapped
+    ? "unavailable"
+    : usesRepairStages
+      ? "input-events"
+      : "paired-row-estimate";
+
+  const byCompany = new Map<string, CompanyPerformanceAccumulator>();
+
+  for (const row of matchingRows) {
+    const company = readColumn(row, mapping.company);
+    if (!company) continue;
+
+    const aggregate =
+      byCompany.get(company) ??
+      ({
+        repairRecords: 0,
+        pass: 0,
+        notPass: 0,
+        amounts: [],
+        units: new Map<string, RecommendationUnitAccumulator>(),
+        inputRecords: 0,
+        trackableInputRecords: 0,
+      } satisfies CompanyPerformanceAccumulator);
+    aggregate.repairRecords += 1;
+
+    const stage = readColumn(row, mapping.tabSheet);
+    const isOutputRow = !usesRepairStages || isOutputStage(stage);
+    const isInputRow = !usesRepairStages || isInputStage(stage);
+    const status = readColumn(row, mapping.status).toUpperCase();
+
+    if (isOutputRow) {
+      if (status === "PASS") aggregate.pass += 1;
+      if (status === "NOT PASS") aggregate.notPass += 1;
+
+      if (status === "PASS" && amountMapped) {
+        const amount = toNumber(row[mapping.amount]);
+        if (amount > 0) aggregate.amounts.push(amount);
+      }
+    }
+
+    if (isInputRow) {
+      aggregate.inputRecords += 1;
+      const serial = readColumn(row, mapping.serial);
+      const material = readColumn(row, mapping.material);
+      if (identifiersMapped && material && isTrackableSerial(serial)) {
+        aggregate.trackableInputRecords += 1;
+        const unitKey = `${material}|${serial}`;
+        const unit =
+          aggregate.units.get(unitKey) ??
+          ({
+            rowCount: 0,
+            inputRows: 0,
+          } satisfies RecommendationUnitAccumulator);
+        if (usesRepairStages) unit.inputRows += 1;
+        else unit.rowCount += 1;
+        aggregate.units.set(unitKey, unit);
+      }
+    }
+
+    byCompany.set(company, aggregate);
+  }
+
+  if (byCompany.size === 0) return null;
+
+  const companies: ModelCompanyPerformance[] = [...byCompany.entries()].map(
+    ([company, aggregate]) => {
+      const completedVerdicts = aggregate.pass + aggregate.notPass;
+      const passRate =
+        completedVerdicts > 0
+          ? (aggregate.pass / completedVerdicts) * 100
+          : null;
+      let repeatUnits = 0;
+      for (const unit of aggregate.units.values()) {
+        const cycles = usesRepairStages
+          ? unit.inputRows
+          : Math.max(1, Math.ceil(unit.rowCount / 2));
+        if (cycles >= 2) repeatUnits += 1;
+      }
+      const trackedUnits = aggregate.units.size;
+      const identifierCoveragePct =
+        identifiersMapped && aggregate.inputRecords > 0
+          ? (aggregate.trackableInputRecords / aggregate.inputRecords) * 100
+          : null;
+      const repeatAvailable =
+        identifierCoveragePct != null &&
+        identifierCoveragePct >= 80 &&
+        trackedUnits > 0;
+      const repeatRate = repeatAvailable
+        ? (repeatUnits / trackedUnits) * 100
+        : null;
+      const repeatUnavailableReason: RepeatUnavailableReason =
+        !identifiersMapped
+          ? "identifier-columns-unavailable"
+          : aggregate.inputRecords === 0
+            ? "no-input-records"
+            : identifierCoveragePct == null || identifierCoveragePct < 80
+              ? "low-identifier-coverage"
+              : trackedUnits === 0
+                ? "no-trackable-units"
+                : null;
+      const pricedRecords = aggregate.amounts.length;
+      const amountCoveragePct =
+        aggregate.pass > 0 ? (pricedRecords / aggregate.pass) * 100 : null;
+      const medianAmount =
+        pricedRecords >= 5 ? median(aggregate.amounts) : null;
+      const amountUnavailableReason: AmountUnavailableReason = !amountMapped
+        ? "amount-column-unavailable"
+        : aggregate.pass === 0
+          ? "no-completed-pass-rows"
+          : pricedRecords < 5
+            ? "too-few-priced-pass-rows"
+            : null;
+
+      return {
+        company,
+        repairRecords: aggregate.repairRecords,
+        passCount: aggregate.pass,
+        completedVerdicts,
+        passRate,
+        confidenceAdjustedPass: wilsonLowerBound(
+          aggregate.pass,
+          completedVerdicts,
+        ),
+        trackedUnits,
+        repeatUnits,
+        repeatRate,
+        identifierCoveragePct,
+        repeatMode,
+        repeatUnavailableReason,
+        medianAmount,
+        pricedRecords,
+        amountCoveragePct,
+        amountUnavailableReason,
+        evidence: evidenceStrength(completedVerdicts),
+        eligible: completedVerdicts >= MIN_RECOMMENDATION_VERDICTS,
+      };
+    },
+  );
+
+  companies.sort((a, b) => {
+    if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+    if (a.eligible && b.eligible) {
+      const qualityDifference =
+        (b.confidenceAdjustedPass ?? -1) -
+        (a.confidenceAdjustedPass ?? -1);
+      if (Math.abs(qualityDifference) > 1e-9) return qualityDifference;
+    }
+    return (
+      b.completedVerdicts - a.completedVerdicts ||
+      b.repairRecords - a.repairRecords ||
+      a.company.localeCompare(b.company, undefined, { sensitivity: "base" })
+    );
+  });
+
+  return {
+    group,
+    model,
+    minimumVerdicts: MIN_RECOMMENDATION_VERDICTS,
+    companies,
+    recommended: companies.find((company) => company.eligible) ?? null,
+  };
 }
 
 /** Everything the Model Deep Dive shows for one model. */
