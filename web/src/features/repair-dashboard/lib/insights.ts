@@ -251,6 +251,10 @@ export type RepeatEvidenceMode =
   | "paired-row-estimate"
   | "unavailable";
 
+export type RecommendationStageMode =
+  | "repair-stages"
+  | "all-row-fallback";
+
 export type RepeatUnavailableReason =
   | "identifier-columns-unavailable"
   | "no-input-records"
@@ -292,6 +296,7 @@ export interface CompanyRecommendationAnalysis {
   group: string;
   model: string;
   minimumVerdicts: number;
+  stageMode: RecommendationStageMode;
   companies: ModelCompanyPerformance[];
   recommended: ModelCompanyPerformance | null;
 }
@@ -533,6 +538,7 @@ export function selectCompanyRecommendation(
     group,
     model,
     minimumVerdicts: MIN_RECOMMENDATION_VERDICTS,
+    stageMode: usesRepairStages ? "repair-stages" : "all-row-fallback",
     companies,
     recommended: companies.find((company) => company.eligible) ?? null,
   };

@@ -339,6 +339,7 @@ function CompanyRecommendationCard({
     candidate && eligible.length >= 2 && !closeResult ? candidate : null;
   const singleEligible =
     candidate && eligible.length === 1 ? candidate : null;
+  const repeatMode = analysis.companies[0]?.repeatMode ?? "unavailable";
 
   return (
     <Card
@@ -531,16 +532,7 @@ function CompanyRecommendationCard({
         </div>
 
         <p className="text-[11px] leading-5 text-muted-foreground">
-          Method: PASS uses output-stage PASS / (PASS + NOT PASS), is suppressed
-          below 10 verdicts, and needs at least {analysis.minimumVerdicts} verdicts
-          for ranking. Eligible companies are ranked by the 95% Wilson lower
-          bound. Repeat repair uses distinct Material + Serial input events; it
-          is shown only at 80% identifier coverage and can break an exact
-          quality tie only when both companies have at least 100 tracked units.
-          Median amount uses positive PASS output amounts, is suppressed below
-          five priced rows, and never changes the ranking. Group and model
-          labels are matched exactly as written in the source sheet; repair
-          records remain sheet rows rather than deduplicated repair cycles.
+          {recommendationMethod(analysis, repeatMode)}
         </p>
       </CardContent>
     </Card>
