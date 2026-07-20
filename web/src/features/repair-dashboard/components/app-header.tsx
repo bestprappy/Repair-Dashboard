@@ -82,9 +82,9 @@ export function AppHeader() {
       <div className="flex shrink-0 items-center gap-2.5">
         <span className="brand-gradient relative flex size-9 items-center justify-center rounded-xl shadow-sm shadow-primary/20">
           <span className="relative size-4.5" aria-hidden="true">
-            <span className="absolute inset-x-0 top-0 h-1.5 rounded-sm bg-white" />
-            <span className="absolute bottom-0 left-0 size-1.5 rounded-sm bg-white/75" />
-            <span className="absolute right-0 bottom-0 h-1.5 w-2.5 rounded-sm bg-white" />
+            <span className="absolute inset-x-0 top-0 h-1.5 rounded-sm bg-primary-foreground" />
+            <span className="absolute bottom-0 left-0 size-1.5 rounded-sm bg-primary-foreground/75" />
+            <span className="absolute right-0 bottom-0 h-1.5 w-2.5 rounded-sm bg-primary-foreground" />
           </span>
           {liveActive ? (
             <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card bg-success" />

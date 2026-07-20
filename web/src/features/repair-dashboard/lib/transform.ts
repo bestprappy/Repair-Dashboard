@@ -1,17 +1,18 @@
 import type { ColumnMapping, CsvRow, RepairDataset } from "./types";
 
-/** Categorical palette shared by every chart. */
+/** Categorical palette shared by every chart. Slots 6–10 blend adjacent
+ * chart tokens so overflow series stay inside the active theme's ramp. */
 export const PALETTE = [
   "var(--chart-1)",
   "var(--chart-2)",
   "var(--chart-3)",
   "var(--chart-4)",
   "var(--chart-5)",
-  "#8b5cf6",
-  "#38bdf8",
-  "#a78bfa",
-  "#6366f1",
-  "#22d3ee",
+  "color-mix(in oklch, var(--chart-1) 55%, var(--chart-3))",
+  "color-mix(in oklch, var(--chart-2) 55%, var(--chart-4))",
+  "color-mix(in oklch, var(--chart-3) 55%, var(--chart-5))",
+  "color-mix(in oklch, var(--chart-4) 55%, var(--chart-1))",
+  "color-mix(in oklch, var(--chart-5) 55%, var(--chart-2))",
 ] as const;
 
 const MONTHS = [

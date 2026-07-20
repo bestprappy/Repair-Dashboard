@@ -17,7 +17,7 @@ export default async function LoginPage({
     <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="surface-shadow w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="brand-gradient mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl text-white">
+          <div className="brand-gradient mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl text-primary-foreground">
             <ShieldCheck aria-hidden="true" className="size-6" />
           </div>
           <CardTitle>Repair Analytics</CardTitle>
