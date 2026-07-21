@@ -402,7 +402,7 @@ function EvidenceBadge({ value }: { value: EvidenceStrength }) {
   );
 }
 
-function CompanyRecommendationCard({
+export function CompanyRecommendationCard({
   analysis,
 }: {
   analysis: CompanyRecommendationAnalysis;

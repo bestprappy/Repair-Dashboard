@@ -13,12 +13,17 @@ import { ColumnMapper } from "./column-mapper";
 import { CompanyView } from "./company-view";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { InsightsView } from "./insights-view";
+import { RepairRecommendationView } from "./repair-recommendation-view";
 import { UploadCard } from "./upload-card";
 import { VendorScorecardView } from "./vendor-scorecard-view";
 import { useLiveSheet } from "../hooks/use-live-sheet";
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
 import { selectAllCompanies } from "../lib/selectors";
-import { INSIGHTS_VIEW, SCORECARD_VIEW } from "../lib/types";
+import {
+  INSIGHTS_VIEW,
+  RECOMMENDATION_VIEW,
+  SCORECARD_VIEW,
+} from "../lib/types";
 import { dataSourceAtom, datasetAtom, stageAtom, viewAtom } from "../state/atoms";
 
 /** Root client component orchestrating the live / upload → dashboard flow. */
@@ -81,6 +86,8 @@ export function RepairDashboard() {
                 <VendorScorecardView dataset={dataset} />
               ) : view === INSIGHTS_VIEW ? (
                 <InsightsView dataset={dataset} />
+              ) : view === RECOMMENDATION_VIEW ? (
+                <RepairRecommendationView dataset={dataset} />
               ) : (
                 <CompanyView dataset={dataset} company={view} />
               )}

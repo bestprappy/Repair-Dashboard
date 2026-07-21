@@ -72,3 +72,6 @@ export const INSIGHTS_VIEW = "__insights__";
 
 /** Sentinel view name for the vendor scorecard page. */
 export const SCORECARD_VIEW = "__scorecard__";
+
+/** Sentinel view name for the focused repair-routing recommendation page. */
+export const RECOMMENDATION_VIEW = "__recommendation__";

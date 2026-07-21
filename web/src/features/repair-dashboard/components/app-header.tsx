@@ -19,7 +19,7 @@ import {
 import { ThemeColorMenu } from "@/components/theme-color-menu";
 
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
-import { INSIGHTS_VIEW } from "../lib/types";
+import { INSIGHTS_VIEW, RECOMMENDATION_VIEW } from "../lib/types";
 import {
   dataSourceAtom,
   datasetAtom,
@@ -61,6 +61,8 @@ export function AppHeader() {
       ? "Overview"
       : view === INSIGHTS_VIEW
         ? "Equipment & models"
+        : view === RECOMMENDATION_VIEW
+          ? "Repair recommendation"
         : view;
 
   const switchToUpload = () => {
@@ -125,6 +127,9 @@ export function AppHeader() {
                 </SelectItem>
               ))}
               <SelectItem value={INSIGHTS_VIEW}>Equipment & models</SelectItem>
+              <SelectItem value={RECOMMENDATION_VIEW}>
+                Repair recommendation
+              </SelectItem>
               <SelectSeparator />
               {liveActive ? (
                 <SelectItem value="__upload__">Upload a CSV…</SelectItem>
