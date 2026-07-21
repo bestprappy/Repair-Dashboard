@@ -9,6 +9,8 @@ interface ChartCardProps {
   height?: number;
   /** Small caveat line under the title, e.g. data coverage. */
   subtitle?: string;
+  /** Optional control rendered beside the title, e.g. a "view all" action. */
+  action?: ReactNode;
 }
 
 /** Quiet, consistent surface for a single operational chart. */
@@ -17,13 +19,17 @@ export function ChartCard({
   children,
   height = 240,
   subtitle,
+  action,
 }: ChartCardProps) {
   return (
     <Card className="gap-4 rounded-xl border border-border/80 px-5 py-5 shadow-xs ring-0 sm:px-6">
       <CardHeader className="px-0">
-        <CardTitle className="text-[14px] font-semibold tracking-[-0.01em] text-foreground">
-          {title}
-        </CardTitle>
+        <div className="flex items-start justify-between gap-3">
+          <CardTitle className="text-[14px] font-semibold tracking-[-0.01em] text-foreground">
+            {title}
+          </CardTitle>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
         {subtitle ? (
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{subtitle}</p>
         ) : null}

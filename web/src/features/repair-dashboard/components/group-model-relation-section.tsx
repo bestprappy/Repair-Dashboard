@@ -14,6 +14,7 @@ import {
 import { ChartCard, SectionHeading } from "@/components/chart-card";
 import { MetricCard } from "@/components/metric-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -39,6 +40,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { RankBarChart } from "./charts";
+import { ModelListDialog } from "./model-list-dialog";
 import {
   selectCompanyRecommendation,
   selectGroupModelRelations,
@@ -65,6 +67,7 @@ export function GroupModelRelationSection({
 }: GroupModelRelationSectionProps) {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [viewAllOpen, setViewAllOpen] = useState(false);
   const relations = useMemo(
     () => selectGroupModelRelations(rows, mapping),
     [rows, mapping],
@@ -75,8 +78,10 @@ export function GroupModelRelationSection({
     relations[0] ??
     null;
   const leadModel = active?.topModels[0] ?? null;
+  // Selection can come from the top-10 preview or the "view all" dialog, so
+  // check against the full model list rather than just the preview slice.
   const activeModel =
-    active?.topModels.some((model) => model.model === selectedModel) &&
+    active?.allModels.some((model) => model.model === selectedModel) &&
     selectedModel
       ? selectedModel
       : (leadModel?.model ?? null);
@@ -183,6 +188,18 @@ export function GroupModelRelationSection({
           title={`Top 10 of ${active.distinctModels.toLocaleString()} models in ${active.group}`}
           subtitle="Ranked by repair-record count. Select a bar to update the company evidence below."
           height={Math.max(340, chartData.length * 42 + 40)}
+          action={
+            active.distinctModels > 10 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setViewAllOpen(true)}
+              >
+                View all {active.distinctModels.toLocaleString()}
+              </Button>
+            ) : null
+          }
         >
           <RankBarChart
             data={chartData}
@@ -195,14 +212,29 @@ export function GroupModelRelationSection({
 
         <Card className="gap-4 rounded-xl border border-border/80 py-5 shadow-xs">
           <CardHeader className="px-5 sm:px-6">
-            <CardTitle className="text-[14px] font-semibold tracking-[-0.01em]">
-              Model relationship detail
-            </CardTitle>
-            <CardDescription className="text-xs leading-5">
-              Select a model row to compare its companies. Share uses the {" "}
-              {active.modelMappedRecords.toLocaleString()} records in this group
-              that include a model.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-[14px] font-semibold tracking-[-0.01em]">
+                  Model relationship detail
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs leading-5">
+                  Select a model row to compare its companies. Share uses the{" "}
+                  {active.modelMappedRecords.toLocaleString()} records in this
+                  group that include a model.
+                </CardDescription>
+              </div>
+              {active.distinctModels > 10 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setViewAllOpen(true)}
+                >
+                  View all model
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="px-0">
             <Table>
@@ -299,6 +331,15 @@ export function GroupModelRelationSection({
       {recommendation ? (
         <CompanyRecommendationCard analysis={recommendation} />
       ) : null}
+
+      <ModelListDialog
+        open={viewAllOpen}
+        onOpenChange={setViewAllOpen}
+        group={active.group}
+        models={active.allModels}
+        selectedModel={activeModel}
+        onSelectModel={setSelectedModel}
+      />
     </section>
   );
 }

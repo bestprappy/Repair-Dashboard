@@ -66,6 +66,9 @@ export interface GroupModelRelation {
   totalRecords: number;
   modelMappedRecords: number;
   distinctModels: number;
+  /** Every model in the group, ranked by repair-record count. */
+  allModels: GroupModelDatum[];
+  /** The ten most frequent models, a slice of `allModels`. */
   topModels: GroupModelDatum[];
 }
 
@@ -188,12 +191,8 @@ export function selectGroupModelRelations(
   }
 
   return [...groups.entries()]
-    .map(([group, aggregate]) => ({
-      group,
-      totalRecords: aggregate.totalRecords,
-      modelMappedRecords: aggregate.modelMappedRecords,
-      distinctModels: aggregate.models.size,
-      topModels: [...aggregate.models.entries()]
+    .map(([group, aggregate]) => {
+      const allModels = [...aggregate.models.entries()]
         .map(([model, modelAggregate]) => {
           const completedRecords =
             modelAggregate.pass + modelAggregate.notPass;
@@ -226,9 +225,17 @@ export function selectGroupModelRelations(
           (a, b) =>
             b.count - a.count ||
             a.model.localeCompare(b.model, undefined, { sensitivity: "base" }),
-        )
-        .slice(0, 10),
-    }))
+        );
+
+      return {
+        group,
+        totalRecords: aggregate.totalRecords,
+        modelMappedRecords: aggregate.modelMappedRecords,
+        distinctModels: aggregate.models.size,
+        allModels,
+        topModels: allModels.slice(0, 10),
+      };
+    })
     .filter((relation) => relation.distinctModels > 0)
     .sort(
       (a, b) =>
