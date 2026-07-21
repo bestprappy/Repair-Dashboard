@@ -13,6 +13,7 @@ import {
 
 import { ChartCard, SectionHeading } from "@/components/chart-card";
 import { MetricCard } from "@/components/metric-card";
+import { Pager } from "@/components/pager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,13 +55,14 @@ import { formatCurrency, paletteColor } from "../lib/transform";
 import type { ColumnMapping, CsvRow } from "../lib/types";
 
 const MIN_CLEAR_LEAD_POINTS = 2;
+const MODELS_PER_PAGE = 10;
 
 interface GroupModelRelationSectionProps {
   rows: CsvRow[];
   mapping: ColumnMapping;
 }
 
-/** Select an equipment group and inspect its ten most common model values. */
+/** Select an equipment group and page through its ranked model values. */
 export function GroupModelRelationSection({
   rows,
   mapping,
@@ -68,6 +70,7 @@ export function GroupModelRelationSection({
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [viewAllOpen, setViewAllOpen] = useState(false);
+  const [page, setPage] = useState(0);
   const relations = useMemo(
     () => selectGroupModelRelations(rows, mapping),
     [rows, mapping],
@@ -77,9 +80,9 @@ export function GroupModelRelationSection({
     relations.find((relation) => relation.group === selectedGroup) ??
     relations[0] ??
     null;
-  const leadModel = active?.topModels[0] ?? null;
-  // Selection can come from the top-10 preview or the "view all" dialog, so
-  // check against the full model list rather than just the preview slice.
+  const leadModel = active?.allModels[0] ?? null;
+  // Selection can come from the paged preview or the "view all" dialog, so
+  // check against the full model list rather than the current page.
   const activeModel =
     active?.allModels.some((model) => model.model === selectedModel) &&
     selectedModel
@@ -109,10 +112,32 @@ export function GroupModelRelationSection({
     return null;
   }
 
-  const chartData = active.topModels.map((model) => ({
+  const pageCount = Math.max(
+    1,
+    Math.ceil(active.allModels.length / MODELS_PER_PAGE),
+  );
+  // `page` is clamped rather than reset in an effect: switching groups can
+  // leave it past the new group's last page until the next interaction.
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageStart = currentPage * MODELS_PER_PAGE;
+  const pageModels = active.allModels.slice(
+    pageStart,
+    pageStart + MODELS_PER_PAGE,
+  );
+  const rangeStart = pageStart + 1;
+  const rangeEnd = pageStart + pageModels.length;
+
+  const chartData = pageModels.map((model) => ({
     label: model.model,
     count: model.count,
   }));
+
+  /** Select a model and jump to the page that shows it. */
+  const selectModel = (model: string) => {
+    setSelectedModel(model);
+    const index = active.allModels.findIndex((item) => item.model === model);
+    if (index >= 0) setPage(Math.floor(index / MODELS_PER_PAGE));
+  };
 
   return (
     <section className="mb-10">
@@ -120,8 +145,9 @@ export function GroupModelRelationSection({
         <div>
           <SectionHeading>Equipment group → model relationship</SectionHeading>
           <p className="-mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-            Select one equipment group, then choose a top-10 model to compare
-            the servicing companies and their historical evidence.
+            Select one equipment group, then page through its models — or open
+            the full list — to compare the servicing companies and their
+            historical evidence.
           </p>
         </div>
         <div className="w-full sm:w-72">
@@ -137,6 +163,7 @@ export function GroupModelRelationSection({
               if (value) {
                 setSelectedGroup(value);
                 setSelectedModel(null);
+                setPage(0);
               }
             }}
           >
@@ -185,19 +212,27 @@ export function GroupModelRelationSection({
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
         <ChartCard
-          title={`Top 10 of ${active.distinctModels.toLocaleString()} models in ${active.group}`}
+          title={`Models ${rangeStart.toLocaleString()}–${rangeEnd.toLocaleString()} of ${active.distinctModels.toLocaleString()} in ${active.group}`}
           subtitle="Ranked by repair-record count. Select a bar to update the company evidence below."
           height={Math.max(340, chartData.length * 42 + 40)}
           action={
-            active.distinctModels > 10 ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setViewAllOpen(true)}
-              >
-                View all {active.distinctModels.toLocaleString()}
-              </Button>
+            active.distinctModels > MODELS_PER_PAGE ? (
+              <div className="flex items-center gap-2">
+                <Pager
+                  page={currentPage}
+                  pageCount={pageCount}
+                  onPageChange={setPage}
+                  label="Model chart pages"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewAllOpen(true)}
+                >
+                  View all {active.distinctModels.toLocaleString()}
+                </Button>
+              </div>
             ) : null
           }
         >
@@ -206,7 +241,7 @@ export function GroupModelRelationSection({
             color={paletteColor(0)}
             name="Repair records"
             selectedLabel={activeModel}
-            onSelect={setSelectedModel}
+            onSelect={selectModel}
           />
         </ChartCard>
 
@@ -223,16 +258,23 @@ export function GroupModelRelationSection({
                   group that include a model.
                 </CardDescription>
               </div>
-              {active.distinctModels > 10 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => setViewAllOpen(true)}
-                >
-                  View all model
-                </Button>
+              {active.distinctModels > MODELS_PER_PAGE ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <Pager
+                    page={currentPage}
+                    pageCount={pageCount}
+                    onPageChange={setPage}
+                    label="Model detail pages"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setViewAllOpen(true)}
+                  >
+                    View all model
+                  </Button>
+                </div>
               ) : null}
             </div>
           </CardHeader>
@@ -250,8 +292,9 @@ export function GroupModelRelationSection({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {active.topModels.map((model, index) => {
+                {pageModels.map((model, index) => {
                   const selected = activeModel === model.model;
+                  const rank = pageStart + index + 1;
                   return (
                     <TableRow
                       key={model.model}
@@ -260,7 +303,7 @@ export function GroupModelRelationSection({
                       <TableCell className="max-w-64 pl-5 font-medium sm:pl-6">
                         <button
                           type="button"
-                          onClick={() => setSelectedModel(model.model)}
+                          onClick={() => selectModel(model.model)}
                           aria-pressed={selected}
                           className="flex w-full items-center gap-2.5 text-left outline-none focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-ring"
                         >
@@ -270,7 +313,7 @@ export function GroupModelRelationSection({
                               selected && "bg-primary text-primary-foreground",
                             )}
                           >
-                            {index + 1}
+                            {rank}
                           </span>
                           <div className="min-w-0">
                             <p className="truncate" title={model.model}>
@@ -338,7 +381,7 @@ export function GroupModelRelationSection({
         group={active.group}
         models={active.allModels}
         selectedModel={activeModel}
-        onSelectModel={setSelectedModel}
+        onSelectModel={selectModel}
       />
     </section>
   );
