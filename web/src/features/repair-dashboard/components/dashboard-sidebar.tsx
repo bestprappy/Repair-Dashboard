@@ -1,13 +1,13 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { Boxes, Building2, Database, LayoutDashboard } from "lucide-react";
+import { Boxes, Building2, Database, LayoutDashboard, Trophy } from "lucide-react";
 import { useAtom } from "jotai";
 
 import { cn } from "@/lib/utils";
 
 import type { CompanyNavItem } from "../lib/selectors";
-import { INSIGHTS_VIEW } from "../lib/types";
+import { INSIGHTS_VIEW, SCORECARD_VIEW } from "../lib/types";
 import { viewAtom } from "../state/atoms";
 
 interface DashboardSidebarProps {
@@ -46,6 +46,12 @@ export function DashboardSidebar({ grandTotal, companies }: DashboardSidebarProp
         </div>
 
         <SidebarLabel className="mt-6">Analysis</SidebarLabel>
+        {/* <SidebarTab
+          name="Vendor scorecard"
+          icon={Trophy}
+          active={view === SCORECARD_VIEW}
+          onSelect={() => setView(SCORECARD_VIEW)}
+        /> */}
         <SidebarTab
           name="Equipment & models"
           icon={Boxes}

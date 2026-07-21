@@ -324,7 +324,7 @@ interface CompanyPerformanceAccumulator {
 }
 
 /** Conservative PASS estimate so tiny samples cannot win on 100% alone. */
-function wilsonLowerBound(pass: number, total: number): number | null {
+export function wilsonLowerBound(pass: number, total: number): number | null {
   if (total === 0) return null;
   const z = 1.96;
   const zSquared = z * z;
@@ -348,7 +348,7 @@ function median(values: number[]): number | null {
     : sorted[middle];
 }
 
-function evidenceStrength(
+export function evidenceStrength(
   completedVerdicts: number,
 ): EvidenceStrength {
   if (completedVerdicts >= 100) return "Strong";
@@ -642,7 +642,7 @@ export function selectModelDetail(
 const MASKED_SERIAL = /^x+$/i;
 
 /** Serials that identify a physical unit (not masked or placeholder). */
-function isTrackableSerial(serial: string): boolean {
+export function isTrackableSerial(serial: string): boolean {
   return (
     serial.length > 2 &&
     !MASKED_SERIAL.test(serial) &&

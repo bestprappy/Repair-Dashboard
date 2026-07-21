@@ -69,3 +69,6 @@ export type DashboardView = "all" | (string & {});
 
 /** Sentinel view name for the in-depth analysis page. */
 export const INSIGHTS_VIEW = "__insights__";
+
+/** Sentinel view name for the vendor scorecard page. */
+export const SCORECARD_VIEW = "__scorecard__";
