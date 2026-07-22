@@ -8,7 +8,6 @@ import {
   LabelList,
   Pie,
   PieChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -275,19 +274,15 @@ export function MonthlyBarChart({
 interface RepairDemandChartProps {
   labels: string[];
   values: number[];
-  mean: number | null;
-  median: number | null;
 }
 
 /**
- * Monthly REPAIR-intake bars with distinct mean and median reference lines.
- * The exact values are shown in the card header, so the lines carry no labels.
+ * Monthly REPAIR-intake bars. The mean and median values are shown in the
+ * card header legend rather than as on-chart reference lines.
  */
 export function RepairDemandChart({
   labels,
   values,
-  mean,
-  median,
 }: RepairDemandChartProps) {
   const data = labels.map((label, index) => ({
     label,
@@ -299,7 +294,7 @@ export function RepairDemandChart({
     <div
       className="h-full"
       role="img"
-      aria-label="Monthly REPAIR input demand with mean and median reference lines"
+      aria-label="Monthly REPAIR input demand"
     >
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 28, right: 14, left: 0, bottom: 4 }}>
@@ -334,26 +329,75 @@ export function RepairDemandChart({
               "Repair inputs",
             ]}
           />
-          {mean != null ? (
-            <ReferenceLine
-              y={mean}
-              stroke="var(--primary)"
-              strokeWidth={2}
-              strokeDasharray="7 5"
-            />
-          ) : null}
-          {median != null ? (
-            <ReferenceLine
-              y={median}
-              stroke="var(--chart-2)"
-              strokeWidth={2}
-              strokeDasharray="3 4"
-            />
-          ) : null}
           <Bar
             dataKey="value"
             radius={[5, 5, 0, 0]}
             fill="var(--repair)"
+            isAnimationActive={false}
+          >
+            {showLabels ? (
+              <LabelList
+                dataKey="value"
+                position="top"
+                fill={LABEL_FILL}
+                fontSize={10}
+                fontWeight={700}
+                formatter={(value) =>
+                  toNum(value) > 0 ? formatCompact(toNum(value)) : ""
+                }
+              />
+            ) : null}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+interface MonthlySpendChartProps {
+  labels: string[];
+  values: number[];
+}
+
+/** Bar chart of total positive reported repair amounts per month. */
+export function MonthlySpendChart({ labels, values }: MonthlySpendChartProps) {
+  const data = labels.map((label, index) => ({
+    label,
+    value: values[index] ?? 0,
+  }));
+  const showLabels = labels.length <= 14;
+
+  return (
+    <div className="h-full" role="img" aria-label="Monthly repair spend">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 28, right: 14, left: 8, bottom: 4 }}>
+          <CartesianGrid vertical={false} stroke={GRID_STROKE} strokeDasharray="4 5" />
+          <XAxis
+            dataKey="label"
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            interval={0}
+            angle={-30}
+            textAnchor="end"
+            height={48}
+          />
+          <YAxis
+            tick={AXIS_TICK}
+            tickFormatter={formatCompact}
+            tickLine={false}
+            axisLine={false}
+            width={52}
+          />
+          <Tooltip
+            cursor={{ fill: "var(--primary)", opacity: 0.06 }}
+            contentStyle={tooltipStyle}
+            formatter={(value) => [formatCurrency(toNum(value), 2), "Repair spend"]}
+          />
+          <Bar
+            dataKey="value"
+            radius={[5, 5, 0, 0]}
+            fill="var(--primary)"
             isAnimationActive={false}
           >
             {showLabels ? (

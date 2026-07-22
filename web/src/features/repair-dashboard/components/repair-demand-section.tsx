@@ -27,7 +27,7 @@ export function RepairDemandSection({
       <SectionHeading>Monthly repair demand</SectionHeading>
       <ChartCard
         title="REPAIR inputs by month"
-        subtitle="Each bar counts REPAIR intake records for that month. The reference lines show the mean and median across all displayed months."
+        subtitle="Each bar counts REPAIR intake records for that month. The mean and median across all displayed months are shown in the legend."
         action={
           <dl
             className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-[11px]"
@@ -66,12 +66,7 @@ export function RepairDemandSection({
             period.
           </div>
         ) : (
-          <RepairDemandChart
-            labels={monthLabels}
-            values={view.values}
-            mean={view.mean}
-            median={view.median}
-          />
+          <RepairDemandChart labels={monthLabels} values={view.values} />
         )}
       </ChartCard>
     </section>

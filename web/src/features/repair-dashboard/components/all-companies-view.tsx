@@ -13,12 +13,14 @@ import { CompanyComparisonSection } from "./company-comparison-section";
 import { DateRangeControl } from "./date-range-control";
 import { EquipmentBreakdownSection } from "./equipment-breakdown-section";
 import { MonthlyGroupSection } from "./monthly-group-section";
+import { MonthlySpendSection } from "./monthly-spend-section";
 import { RepairDemandSection } from "./repair-demand-section";
 import { StatusOverviewSection } from "./status-overview-section";
 import { WorkflowFlowSection } from "./workflow-flow-section";
 import {
   selectAllCompanies,
   selectBreakdown,
+  selectMonthlySpend,
   selectRepairDemand,
 } from "../lib/selectors";
 import { formatCurrency, formatYM } from "../lib/transform";
@@ -47,6 +49,10 @@ export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
   );
   const repairDemand = useMemo(
     () => selectRepairDemand(filteredDataset),
+    [filteredDataset],
+  );
+  const monthlySpend = useMemo(
+    () => selectMonthlySpend(filteredDataset),
     [filteredDataset],
   );
   const workflowFlows = useMemo(
@@ -108,6 +114,7 @@ export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
       </div>
 
       <RepairDemandSection monthLabels={monthLabels} view={repairDemand} />
+      <MonthlySpendSection monthLabels={monthLabels} view={monthlySpend} />
       <StatusOverviewSection
         title="Current status mix"
         statuses={view.statuses}

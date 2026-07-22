@@ -229,6 +229,46 @@ export function selectRepairDemand(
   };
 }
 
+/** Monthly repair spend for the selected dashboard scope. */
+export interface MonthlySpendView {
+  /** Positive reported repair amounts per month, aligned to dataset.allMonths. */
+  values: number[];
+  /** Total positive reported repair amount across the displayed months. */
+  total: number;
+  /** Arithmetic mean across every displayed month, including zero-spend months. */
+  average: number | null;
+}
+
+/** Aggregate group-level monthly amounts for all companies or one company. */
+export function selectMonthlySpend(
+  dataset: RepairDataset,
+  company?: string,
+): MonthlySpendView {
+  const scopedData = company
+    ? dataset.companies[company]
+      ? [dataset.companies[company]]
+      : []
+    : Object.values(dataset.companies);
+  const values = dataset.allMonths.map((month) =>
+    scopedData.reduce(
+      (companySum, data) =>
+        companySum +
+        Object.values(data.monthly).reduce(
+          (groupSum, byMonth) => groupSum + (byMonth[month] ?? 0),
+          0,
+        ),
+      0,
+    ),
+  );
+  const total = values.reduce((sum, value) => sum + value, 0);
+
+  return {
+    values,
+    total,
+    average: values.length > 0 ? total / values.length : null,
+  };
+}
+
 /** A labeled count for ranked bar charts and donuts. */
 export interface RankDatum {
   label: string;
