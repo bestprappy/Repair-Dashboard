@@ -23,17 +23,22 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
+import { DateRangeControl } from "./date-range-control";
 import { VendorScorecardTable } from "./vendor-scorecard-table";
 import { filterAnalyzedRows } from "../lib/insights";
 import { selectVendorScorecard } from "../lib/scorecard";
 import type { RepairDataset } from "../lib/types";
-import { mappingAtom, rawRowsAtom, viewAtom } from "../state/atoms";
+import {
+  filteredRowsAtom,
+  mappingAtom,
+  viewAtom,
+} from "../state/atoms";
 
 const DEFAULT_SLA_TARGET = 30;
 
 /** Ranked vendor scorecard: one composite grade per servicing company. */
 export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
-  const rows = useAtomValue(rawRowsAtom);
+  const filteredRows = useAtomValue(filteredRowsAtom);
   const mapping = useAtomValue(mappingAtom);
   const setView = useSetAtom(viewAtom);
 
@@ -42,8 +47,8 @@ export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
   const deferredQuery = useDeferredValue(query);
 
   const analyzedRows = useMemo(
-    () => filterAnalyzedRows(rows, mapping),
-    [rows, mapping],
+    () => filterAnalyzedRows(filteredRows, mapping),
+    [filteredRows, mapping],
   );
   const scorecard = useMemo(
     () => selectVendorScorecard(analyzedRows, mapping, target),
@@ -67,6 +72,12 @@ export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
         title="Vendor scorecard"
         description="Every servicing company graded on a single composite of completion quality and SLA compliance, with repeat-repair and cost shown as context. Select a vendor to open its full view."
         months={dataset.allMonths}
+        dateControl={
+          <DateRangeControl
+            availableMonths={dataset.allMonths}
+            disabled={!mapping.ym}
+          />
+        }
         meta={`${scorecard.eligibleCount} graded of ${scorecard.vendors.length} vendors`}
       />
 

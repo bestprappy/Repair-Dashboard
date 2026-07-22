@@ -1,6 +1,7 @@
 import { atom } from "jotai";
 
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
+import { buildDataset, parseYM, readColumn } from "../lib/transform";
 import type {
   ColumnMapping,
   CsvRow,
@@ -55,6 +56,7 @@ const FIELD_KEYWORDS: Record<keyof ColumnMapping, string[]> = {
   subCause: ["sub cause", "subcause", "sub_cause"],
   serial: ["serial"],
   material: ["material"],
+  ticket: ["tr no", "ticket", "tr number"],
   date: ["date", "transaction date", "repair date"],
 };
 
@@ -85,9 +87,53 @@ export function guessMapping(fields: string[]): ColumnMapping {
     subCause: pick("subCause") || "",
     serial: pick("serial") || "",
     material: pick("material") || "",
+    ticket: pick("ticket") || "",
     date: pick("date") || "",
   };
 }
 
 /** The working column mapping shown in the mapping screen. */
 export const mappingAtom = atom<ColumnMapping>(guessMapping([]));
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+/** Default reporting window: the full current calendar year (`YYYY-MM`). */
+export const DEFAULT_START_MONTH = `${CURRENT_YEAR}-01`;
+export const DEFAULT_END_MONTH = `${CURRENT_YEAR}-12`;
+
+/**
+ * Global reporting window shared by every dashboard page. Changing either bound
+ * re-filters the data for all views at once (single source of truth).
+ */
+export const startMonthAtom = atom(DEFAULT_START_MONTH);
+export const endMonthAtom = atom(DEFAULT_END_MONTH);
+
+/** Raw rows narrowed to the selected reporting window. */
+export const filteredRowsAtom = atom((get) => {
+  const rows = get(rawRowsAtom);
+  const mapping = get(mappingAtom);
+  // Without a mapped Y&M column there is no date to filter on.
+  if (!mapping.ym) return rows;
+  const start = get(startMonthAtom);
+  const end = get(endMonthAtom);
+  return rows.filter((row) => {
+    const month = parseYM(readColumn(row, mapping.ym));
+    return month != null && month >= start && month <= end;
+  });
+});
+
+/**
+ * The built dataset aggregated over the selected reporting window. Workflow
+ * events are paired against the complete history (third argument) before the
+ * window is applied, so date boundaries never rematch an output to the wrong
+ * input. Falls back to the full dataset when no date column is mapped.
+ */
+export const filteredDatasetAtom = atom((get) => {
+  const base = get(datasetAtom);
+  if (!base) return null;
+  const mapping = get(mappingAtom);
+  if (!mapping.ym) return base;
+  const rows = get(rawRowsAtom);
+  const filtered = get(filteredRowsAtom);
+  return buildDataset(filtered, mapping, rows);
+});

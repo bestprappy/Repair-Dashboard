@@ -1,4 +1,5 @@
 import { CalendarDays } from "lucide-react";
+import type { ReactNode } from "react";
 
 interface DashboardPageHeaderProps {
   eyebrow: string;
@@ -6,6 +7,7 @@ interface DashboardPageHeaderProps {
   description: string;
   months?: string[];
   meta?: string;
+  dateControl?: ReactNode;
 }
 
 function monthRange(months: string[]): string | null {
@@ -33,6 +35,7 @@ export function DashboardPageHeader({
   description,
   months = [],
   meta,
+  dateControl,
 }: DashboardPageHeaderProps) {
   const range = monthRange(months);
 
@@ -48,14 +51,14 @@ export function DashboardPageHeader({
         </p>
       </div>
 
-      {range || meta ? (
+      {dateControl || range || meta ? (
         <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {range ? (
+          {dateControl ?? (range ? (
             <span className="inline-flex h-9 items-center gap-2 rounded-lg border bg-card px-3 font-medium shadow-xs">
               <CalendarDays className="size-3.5 text-primary" />
               {range}
             </span>
-          ) : null}
+          ) : null)}
           {meta ? (
             <span className="inline-flex h-9 items-center rounded-lg border bg-card px-3 font-medium shadow-xs">
               {meta}

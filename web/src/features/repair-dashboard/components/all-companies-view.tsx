@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { useAtomValue } from "jotai";
 import { Banknote, Building2, CircleCheck, FileStack } from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
@@ -9,19 +10,50 @@ import { MetricCard } from "@/components/metric-card";
 
 import { CauseSection } from "./cause-section";
 import { CompanyComparisonSection } from "./company-comparison-section";
+import { DateRangeControl } from "./date-range-control";
 import { EquipmentBreakdownSection } from "./equipment-breakdown-section";
 import { MonthlyGroupSection } from "./monthly-group-section";
-import { MonthlyStatusSection } from "./monthly-status-section";
+import { RepairDemandSection } from "./repair-demand-section";
 import { StatusOverviewSection } from "./status-overview-section";
-import { selectAllCompanies, selectBreakdown } from "../lib/selectors";
+import { WorkflowFlowSection } from "./workflow-flow-section";
+import {
+  selectAllCompanies,
+  selectBreakdown,
+  selectRepairDemand,
+} from "../lib/selectors";
 import { formatCurrency, formatYM } from "../lib/transform";
 import type { RepairDataset } from "../lib/types";
+import { selectWorkflowFlows } from "../lib/workflow-flow";
+import {
+  filteredDatasetAtom,
+  filteredRowsAtom,
+  mappingAtom,
+  rawRowsAtom,
+} from "../state/atoms";
 
 /** Aggregate operational dashboard across every company. */
 export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
-  const view = useMemo(() => selectAllCompanies(dataset), [dataset]);
-  const breakdown = useMemo(() => selectBreakdown(dataset), [dataset]);
-  const monthLabels = dataset.allMonths.map(formatYM);
+  const rows = useAtomValue(rawRowsAtom);
+  const mapping = useAtomValue(mappingAtom);
+  const filteredRows = useAtomValue(filteredRowsAtom);
+  const filteredDataset = useAtomValue(filteredDatasetAtom) ?? dataset;
+  const view = useMemo(
+    () => selectAllCompanies(filteredDataset),
+    [filteredDataset],
+  );
+  const breakdown = useMemo(
+    () => selectBreakdown(filteredDataset),
+    [filteredDataset],
+  );
+  const repairDemand = useMemo(
+    () => selectRepairDemand(filteredDataset),
+    [filteredDataset],
+  );
+  const workflowFlows = useMemo(
+    () => selectWorkflowFlows(filteredRows, rows, mapping),
+    [filteredRows, rows, mapping],
+  );
+  const monthLabels = filteredDataset.allMonths.map(formatYM);
   const passCount = view.statuses.find((item) => item.status === "PASS")?.count ?? 0;
   const notPassCount =
     view.statuses.find((item) => item.status === "NOT PASS")?.count ?? 0;
@@ -34,7 +66,12 @@ export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
         eyebrow="Operations overview"
         title="Repair overview"
         description="Monitor repair volume, completion quality, equipment mix, and cost across every service company."
-        months={dataset.allMonths}
+        dateControl={
+          <DateRangeControl
+            availableMonths={dataset.allMonths}
+            disabled={!mapping.ym}
+          />
+        }
         meta={`${view.companyCount} companies`}
       />
 
@@ -70,15 +107,12 @@ export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
         />
       </div>
 
-      <MonthlyStatusSection
-        title="Repair volume over time"
-        monthLabels={monthLabels}
-        view={breakdown}
-      />
+      <RepairDemandSection monthLabels={monthLabels} view={repairDemand} />
       <StatusOverviewSection
         title="Current status mix"
         statuses={view.statuses}
       />
+      <WorkflowFlowSection flows={workflowFlows} />
       <CompanyComparisonSection companyStats={view.companyStats} />
       <EquipmentBreakdownSection view={breakdown} />
       <CauseSection view={breakdown} />

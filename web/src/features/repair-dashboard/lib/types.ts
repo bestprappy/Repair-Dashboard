@@ -14,12 +14,30 @@ export interface ColumnMapping {
   subCause?: string;
   serial?: string;
   material?: string;
+  /**
+   * Repair ticket / batch number ("TR No."). Scopes input↔output pairing to a
+   * single repair cycle: a serial identifies a physical unit serviced across
+   * many tickets over time, so serial alone cross-links unrelated cycles.
+   */
+  ticket?: string;
   /** Row-level lifecycle date used to measure repair turnaround. */
   date?: string;
 }
 
 /** Aggregated count + amount for a single equipment group within a status. */
 export interface GroupStat {
+  count: number;
+  amount: number;
+  /** Model/equipment detail retained for company-page drill-down tables. */
+  details: Record<string, GroupDetailStat>;
+}
+
+/** Aggregated rows within one status + equipment-group combination. */
+export interface GroupDetailStat {
+  model: string;
+  equipment: string;
+  inputDate: string;
+  outputDate: string;
   count: number;
   amount: number;
 }
@@ -40,7 +58,7 @@ export interface CompanyData {
   causeCount: Record<string, number>;
   /** Record count per reported sub cause (sparse column). */
   subCauseCount: Record<string, number>;
-  /** Total amount across every row, date-independent. */
+  /** Total amount across rows included in the overview, date-independent. */
   amount: number;
 }
 
@@ -75,3 +93,6 @@ export const SCORECARD_VIEW = "__scorecard__";
 
 /** Sentinel view name for the focused repair-routing recommendation page. */
 export const RECOMMENDATION_VIEW = "__recommendation__";
+
+/** Sentinel view name for the SLA and overdue open-repairs page. */
+export const SLA_VIEW = "__sla__";

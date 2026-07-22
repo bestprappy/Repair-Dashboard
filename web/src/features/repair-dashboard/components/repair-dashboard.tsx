@@ -14,6 +14,7 @@ import { CompanyView } from "./company-view";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { InsightsView } from "./insights-view";
 import { RepairRecommendationView } from "./repair-recommendation-view";
+import { SlaOverdueView } from "./sla-overdue-view";
 import { UploadCard } from "./upload-card";
 import { VendorScorecardView } from "./vendor-scorecard-view";
 import { useLiveSheet } from "../hooks/use-live-sheet";
@@ -23,6 +24,7 @@ import {
   INSIGHTS_VIEW,
   RECOMMENDATION_VIEW,
   SCORECARD_VIEW,
+  SLA_VIEW,
 } from "../lib/types";
 import { dataSourceAtom, datasetAtom, stageAtom, viewAtom } from "../state/atoms";
 
@@ -86,6 +88,8 @@ export function RepairDashboard() {
                 <VendorScorecardView dataset={dataset} />
               ) : view === INSIGHTS_VIEW ? (
                 <InsightsView dataset={dataset} />
+              ) : view === SLA_VIEW ? (
+                <SlaOverdueView dataset={dataset} />
               ) : view === RECOMMENDATION_VIEW ? (
                 <RepairRecommendationView dataset={dataset} />
               ) : (

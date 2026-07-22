@@ -1,4 +1,8 @@
-import type { ColumnMapping, CsvRow, RepairDataset } from "./types";
+import type {
+  ColumnMapping,
+  CsvRow,
+  RepairDataset,
+} from "./types";
 
 /** Categorical palette shared by every chart. Slots 6–10 blend adjacent
  * chart tokens so overflow series stay inside the active theme's ramp. */
@@ -68,7 +72,7 @@ export function statusTone(status: string): StatusTone | null {
     return "bad";
   }
   if (/PASS|SUCCESS|COMPLETE|DONE|GOOD|\bOK\b/.test(label)) return "good";
-  if (/WAIT|PENDING|HOLD|PROGRESS|PROCESS|REPAIR|REVIEW|CHECK|RETURN/.test(label)) {
+  if (/WAIT|PENDING|HOLD|PROGRESS|PROCESS|REPAIR|REVIEW|CHECK|RETURN|CARRYOVER/.test(label)) {
     return "warning";
   }
   return null;
@@ -129,15 +133,62 @@ export function readColumn(row: CsvRow, column: string | undefined): string {
   return column ? (row[column] ?? "").trim() : "";
 }
 
-/**
- * Data Tab Sheet stages excluded from the dashboard entirely (SVM in/out
- * movements are stock transfers, not repairs).
- */
+/** Format lifecycle dates consistently as DD/MM/YY without changing source data. */
+export function formatDisplayDate(value: string | Date): string {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "";
+    return `${String(value.getDate()).padStart(2, "0")}/${String(value.getMonth() + 1).padStart(2, "0")}/${String(value.getFullYear()).slice(-2)}`;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const before = trimmed.match(/^Before\s+(.+)$/i);
+  if (before) return `Before ${formatDisplayDate(before[1])}`;
+  const dayFirst = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (dayFirst) return `${dayFirst[1].padStart(2, "0")}/${dayFirst[2].padStart(2, "0")}/${dayFirst[3].slice(-2)}`;
+  const iso = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[3].padStart(2, "0")}/${iso[2].padStart(2, "0")}/${iso[1].slice(-2)}`;
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? trimmed : formatDisplayDate(parsed);
+}
+
+function workflowDateTime(value: string): number {
+  // Source dates are DD/MM/YYYY, so parse that explicitly first. new Date()
+  // would misread e.g. "06/01/2026" as US MM/DD (June 1) instead of 6 Jan,
+  // corrupting the pairing order and turnaround. ISO/other formats still fall
+  // through to new Date().
+  const match = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (match) {
+    const year = Number(match[3]) < 100 ? 2000 + Number(match[3]) : Number(match[3]);
+    return new Date(year, Number(match[2]) - 1, Number(match[1])).getTime();
+  }
+  return new Date(value).getTime();
+}
+
+/** SVM in/out stages are stock movements, not repair lifecycle records. */
 const EXCLUDED_TAB_SHEETS = /SVM/i;
 
-/** Whether a Data Tab Sheet value marks a row the dashboard must ignore. */
+/** Whether a Data Tab Sheet value is an SVM stock-movement stage. */
 export function isExcludedTabSheet(value: string): boolean {
   return EXCLUDED_TAB_SHEETS.test(value);
+}
+
+function isRepairInputStage(value: string): boolean {
+  return !isExcludedTabSheet(value) && /input/i.test(value);
+}
+
+function isRepairOutputStage(value: string): boolean {
+  return !isExcludedTabSheet(value) && /output/i.test(value);
+}
+
+/**
+ * Overview lifecycle rule: REPAIR represents an intake; every outcome status
+ * represents an output. This prevents the aggregate and company dashboards
+ * from mixing duplicate/inapplicable statuses across the two workflow sheets.
+ */
+function isOverviewLifecycleRow(status: string, stage: string): boolean {
+  return status === "REPAIR"
+    ? isRepairInputStage(stage)
+    : isRepairOutputStage(stage);
 }
 
 /**
@@ -151,11 +202,73 @@ export function splitCauseTokens(value: string): string[] {
     .filter(Boolean);
 }
 
-/** Build the aggregated dataset from raw CSV rows and a column mapping. */
-export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairDataset {
+/**
+ * Build the aggregated dataset from raw CSV rows and a column mapping.
+ * `workflowRows` may include records outside `rows` so date-filtered views
+ * preserve the input/output pairs established from the complete history. When
+ * repair workflow stages are available, overview aggregates use REPAIR intake
+ * rows and output rows for every other status.
+ */
+export function buildDataset(
+  rows: CsvRow[],
+  mapping: ColumnMapping,
+  workflowRows: CsvRow[] = rows,
+): RepairDataset {
   const companies: RepairDataset["companies"] = {};
   const statusSet = new Set<string>();
   const monthSet = new Set<string>();
+
+  // Attach paired workflow dates to both rows in a repair cycle so the group
+  // drill-down can show input and output dates together.
+  const workflowDates = new WeakMap<CsvRow, { inputDate: string; outputDate: string }>();
+  const workflowUnits = new Map<string, { row: CsvRow; date: string; time: number; stage: string }[]>();
+  if (mapping.date && mapping.tabSheet) {
+    for (const row of workflowRows) {
+      const date = readColumn(row, mapping.date);
+      const stage = readColumn(row, mapping.tabSheet);
+      if (isExcludedTabSheet(stage)) continue;
+      if (!date || !/(input|output)/i.test(stage)) continue;
+      const own = { inputDate: /input/i.test(stage) ? date : "", outputDate: /output/i.test(stage) ? date : "" };
+      workflowDates.set(row, own);
+      const serial = readColumn(row, mapping.serial);
+      if (!serial) continue;
+      const material = readColumn(row, mapping.material);
+      // Pair within a single repair ticket (TR No.). A serial identifies a
+      // physical unit serviced across many tickets over time, so serial alone
+      // cross-links unrelated cycles, closing an open intake with an unrelated
+      // later output for the same device. Ticket is optional: an empty value
+      // preserves the legacy serial-only grouping for datasets without one.
+      const ticket = readColumn(row, mapping.ticket);
+      const key = `${readColumn(row, mapping.company)}\u0000${material}\u0000${serial}\u0000${ticket}`;
+      const time = workflowDateTime(date);
+      if (Number.isNaN(time)) continue;
+      workflowUnits.set(key, [...(workflowUnits.get(key) ?? []), { row, date, time, stage }]);
+    }
+    for (const events of workflowUnits.values()) {
+      events.sort((a, b) => a.time - b.time);
+      const pending: typeof events = [];
+      for (const event of events) {
+        if (/input/i.test(event.stage)) pending.push(event);
+        else {
+          const input = pending.shift();
+          if (!input || event.time < input.time) continue;
+          const pair = { inputDate: input.date, outputDate: event.date };
+          workflowDates.set(input.row, pair);
+          workflowDates.set(event.row, pair);
+        }
+      }
+    }
+  }
+
+  // Preserve support for legacy uploads without a workflow-stage column. Once
+  // the source exposes repair input/output stages, enforce the lifecycle rule
+  // consistently even when a date-filtered subset contains only one side.
+  const usesRepairStages =
+    Boolean(mapping.tabSheet) &&
+    workflowRows.some((row) => {
+      const stage = readColumn(row, mapping.tabSheet);
+      return isRepairInputStage(stage) || isRepairOutputStage(stage);
+    });
 
   for (const row of rows) {
     const company = (row[mapping.company] ?? "").trim();
@@ -164,9 +277,11 @@ export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairData
     const amount = toNumber(row[mapping.amount]);
     const ym = parseYM(row[mapping.ym]);
     if (!company || !status) continue;
-
-    const tabSheet = readColumn(row, mapping.tabSheet);
-    if (isExcludedTabSheet(tabSheet)) continue;
+    const stage = readColumn(row, mapping.tabSheet);
+    if (isExcludedTabSheet(stage)) continue;
+    if (usesRepairStages && !isOverviewLifecycleRow(status, stage)) {
+      continue;
+    }
 
     statusSet.add(status);
 
@@ -187,9 +302,23 @@ export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairData
     data.amount += amount;
 
     const groups = (data.statusGroups[status] ??= {});
-    const groupStat = (groups[group] ??= { count: 0, amount: 0 });
+    const groupStat = (groups[group] ??= { count: 0, amount: 0, details: {} });
     groupStat.count += 1;
     groupStat.amount += amount;
+
+    const model = readColumn(row, mapping.model) || "Unknown";
+    const equipment = readColumn(row, mapping.equipment) || "Unknown";
+    const dates = workflowDates.get(row) ?? { inputDate: "", outputDate: "" };
+    const detailKey = `${model}\u0000${equipment}\u0000${dates.inputDate}\u0000${dates.outputDate}`;
+    const detail = (groupStat.details[detailKey] ??= {
+      model,
+      equipment,
+      ...dates,
+      count: 0,
+      amount: 0,
+    });
+    detail.count += 1;
+    detail.amount += amount;
 
     if (ym) {
       const byMonth = (data.statusMonthly[status] ??= {});
@@ -202,8 +331,9 @@ export function buildDataset(rows: CsvRow[], mapping: ColumnMapping): RepairData
       monthly[ym] = (monthly[ym] ?? 0) + amount;
     }
 
-    const model = readColumn(row, mapping.model);
-    if (model) data.modelCount[model] = (data.modelCount[model] ?? 0) + 1;
+    if (model !== "Unknown") {
+      data.modelCount[model] = (data.modelCount[model] ?? 0) + 1;
+    }
 
     for (const token of splitCauseTokens(readColumn(row, mapping.cause))) {
       data.causeCount[token] = (data.causeCount[token] ?? 0) + 1;

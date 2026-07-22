@@ -24,16 +24,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { readColumn } from "../lib/transform";
+import { formatDisplayDate, readColumn, statusColor } from "../lib/transform";
 import type { ColumnMapping, CsvRow } from "../lib/types";
 
 const ALL = "__all__";
 const PAGE_SIZE = 50;
 
+function lifecycleTime(value: string): number {
+  const match = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (match) {
+    const year = Number(match[3]) < 100 ? 2000 + Number(match[3]) : Number(match[3]);
+    return new Date(year, Number(match[2]) - 1, Number(match[1])).getTime();
+  }
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+}
+
 interface DataExplorerSectionProps {
   rows: CsvRow[];
+  historyRows?: CsvRow[];
   fields: string[];
   mapping: ColumnMapping;
+  focusedUnit?: { serial: string; material: string } | null;
+  onClearFocusedUnit?: () => void;
 }
 
 function distinctValues(
@@ -53,8 +66,11 @@ function distinctValues(
 /** Filterable, searchable, paginated table over every analyzed row. */
 export function DataExplorerSection({
   rows,
+  historyRows = rows,
   fields,
   mapping,
+  focusedUnit = null,
+  onClearFocusedUnit,
 }: DataExplorerSectionProps) {
   const [company, setCompany] = useState(ALL);
   const [status, setStatus] = useState(ALL);
@@ -82,6 +98,11 @@ export function DataExplorerSection({
   );
 
   const filtered = useMemo(() => {
+    if (focusedUnit) {
+      return historyRows
+        .filter((row) => readColumn(row, mapping.serial) === focusedUnit.serial && readColumn(row, mapping.material) === focusedUnit.material)
+        .sort((a, b) => lifecycleTime(readColumn(a, mapping.date)) - lifecycleTime(readColumn(b, mapping.date)));
+    }
     const needle = deferredSearch.trim().toLowerCase();
     return rows.filter((row) => {
       if (company !== ALL && readColumn(row, mapping.company) !== company) {
@@ -104,7 +125,7 @@ export function DataExplorerSection({
         (row[field] ?? "").toLowerCase().includes(needle),
       );
     });
-  }, [rows, fields, mapping, company, status, group, month, deferredSearch]);
+  }, [rows, historyRows, fields, mapping, company, status, group, month, deferredSearch, focusedUnit]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
@@ -147,7 +168,13 @@ export function DataExplorerSection({
       <SectionHeading>Repair record explorer</SectionHeading>
 
       <Card className="gap-5 rounded-xl px-4 py-4 shadow-xs ring-0 sm:px-5 sm:py-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        {focusedUnit ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+            <p className="text-xs"><span className="font-semibold text-primary">Repeat-unit timeline:</span> <span className="font-mono">{focusedUnit.serial}</span> · {focusedUnit.material || "Unknown material"}</p>
+            <Button type="button" variant="ghost" size="sm" onClick={onClearFocusedUnit}>Show all records</Button>
+          </div>
+        ) : null}
+        {!focusedUnit ? <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {filterSelect("Companies", company, applyFilter(setCompany), companyOptions)}
           {filterSelect("Statuses", status, applyFilter(setStatus), statusOptions)}
           {filterSelect("Groups", group, applyFilter(setGroup), groupOptions)}
@@ -169,7 +196,7 @@ export function DataExplorerSection({
               className="pl-9"
             />
           </div>
-        </div>
+        </div> : null}
 
         <div className="max-h-[34rem] overflow-y-auto rounded-lg border bg-card">
           <Table>
@@ -199,15 +226,32 @@ export function DataExplorerSection({
               ) : (
                 pageRows.map((row, rowIndex) => (
                   <TableRow key={safePage * PAGE_SIZE + rowIndex}>
-                    {fields.map((field, colIndex) => (
-                      <TableCell
-                        key={colIndex}
-                        className="max-w-64 truncate"
-                        title={row[field] ?? ""}
-                      >
-                        {row[field] ?? ""}
-                      </TableCell>
-                    ))}
+                    {fields.map((field, colIndex) => {
+                      const raw = row[field] ?? "";
+                      const isStatus = field === mapping.status;
+                      const isStage = field === mapping.tabSheet;
+                      const isDate = field === mapping.date;
+                      const isSelectedIdentifier = Boolean(focusedUnit) && (field === mapping.serial || field === mapping.material);
+                      if (isStatus && raw.trim()) {
+                        const label = raw.trim().toUpperCase();
+                        const color = statusColor(label, colIndex);
+                        return <TableCell key={colIndex} className="max-w-64" title={raw}><span className="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold" style={{ color, borderColor: `color-mix(in oklch, ${color} 35%, transparent)`, backgroundColor: `color-mix(in oklch, ${color} 10%, transparent)` }}>{label}</span></TableCell>;
+                      }
+                      if (isStage && raw.trim()) {
+                        const output = /output/i.test(raw);
+                        const input = /input/i.test(raw);
+                        return <TableCell key={colIndex} className="max-w-64" title={raw}><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${output ? "border-success/30 bg-success/10 text-success" : input ? "border-warning/30 bg-warning/10 text-warning" : "border-border bg-muted text-muted-foreground"}`}>{output ? "OUTPUT" : input ? "INPUT" : raw}</span></TableCell>;
+                      }
+                      return (
+                        <TableCell
+                          key={colIndex}
+                          className={`max-w-64 truncate ${isSelectedIdentifier ? "bg-primary/8 font-medium text-primary" : ""} ${isDate && (!raw.trim() || lifecycleTime(raw) === Number.MAX_SAFE_INTEGER) ? "bg-destructive/8 font-medium text-destructive" : ""}`}
+                          title={raw}
+                        >
+                          {isDate && raw ? formatDisplayDate(raw) : raw || (isDate ? "Missing date" : "")}
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 ))
               )}

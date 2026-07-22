@@ -21,6 +21,18 @@ export function filterAnalyzedRows(
   );
 }
 
+/** Best available calendar year for a row, preferring Y&M over lifecycle date. */
+export function getRowYear(row: CsvRow, mapping: ColumnMapping): number | null {
+  const month = parseYM(readColumn(row, mapping.ym));
+  if (month) return Number(month.slice(0, 4));
+  const value = readColumn(row, mapping.date);
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) return parsed.getFullYear();
+  const match = value.match(/(?:^|\D)(\d{4})(?:\D|$)/);
+  return match ? Number(match[1]) : null;
+}
+
 /** Models matching a search query, ranked by repair volume. */
 export function rankModels(
   rows: CsvRow[],
@@ -656,8 +668,22 @@ export interface RepeatUnit {
   material: string;
   model: string;
   company: string;
+  group: string;
+  equipment: string;
+  statuses: string;
+  inputRows: number;
+  outputRows: number;
+  carryoverInputs: number;
+  timeline: RepeatTimelineEvent[];
   cycles: number;
   rowCount: number;
+}
+
+export interface RepeatTimelineEvent {
+  date: string;
+  timestamp: number;
+  stage: "INPUT" | "OUTPUT";
+  status: string;
 }
 
 /** Repeat-repair aggregates across trackable units. */
@@ -675,8 +701,14 @@ interface UnitAgg {
   material: string;
   model: string;
   company: string;
+  group: string;
+  equipment: string;
+  statuses: Set<string>;
   rowCount: number;
   inputRows: number;
+  outputRows: number;
+  carryoverInputs: number;
+  timeline: RepeatTimelineEvent[];
 }
 
 /**
@@ -687,6 +719,7 @@ interface UnitAgg {
 export function selectRepeatRepairs(
   rows: CsvRow[],
   mapping: ColumnMapping,
+  historyRows: CsvRow[] = rows,
 ): RepeatAnalysis | null {
   if (!mapping.serial) return null;
 
@@ -706,21 +739,73 @@ export function selectRepeatRepairs(
         material,
         model: "",
         company: "",
+        group: "",
+        equipment: "",
+        statuses: new Set<string>(),
         rowCount: 0,
         inputRows: 0,
+        outputRows: 0,
+        carryoverInputs: 0,
+        timeline: [],
       } satisfies UnitAgg);
 
     unit.rowCount += 1;
     if (!unit.model) unit.model = readColumn(row, mapping.model);
     if (!unit.company) unit.company = (row[mapping.company] ?? "").trim();
-    if (/input/i.test(readColumn(row, mapping.tabSheet))) {
+    if (!unit.group) unit.group = readColumn(row, mapping.group);
+    if (!unit.equipment) unit.equipment = readColumn(row, mapping.equipment);
+    const stage = readColumn(row, mapping.tabSheet);
+    if (/input/i.test(stage)) {
       unit.inputRows += 1;
       anyInput = true;
+    }
+    if (/output/i.test(stage)) {
+      unit.outputRows += 1;
+      const status = readColumn(row, mapping.status);
+      if (status) unit.statuses.add(status.toUpperCase());
     }
     units.set(key, unit);
   }
 
   if (units.size === 0) return null;
+
+  // Attach the complete chronological lifecycle, even when the analysis rows
+  // cover only one reporting year. This explains outputs whose inputs occurred
+  // before the selected window.
+  for (const row of historyRows) {
+    const serial = readColumn(row, mapping.serial);
+    if (!isTrackableSerial(serial)) continue;
+    const material = readColumn(row, mapping.material);
+    const unit = units.get(`${material}|${serial}`);
+    if (!unit) continue;
+    const rawStage = readColumn(row, mapping.tabSheet);
+    const stage = /input/i.test(rawStage) ? "INPUT" : /output/i.test(rawStage) ? "OUTPUT" : null;
+    if (!stage) continue;
+    const date = readColumn(row, mapping.date);
+    const ddmmyyyy = date.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+    const timestamp = ddmmyyyy
+      ? new Date(Number(ddmmyyyy[3]) < 100 ? 2000 + Number(ddmmyyyy[3]) : Number(ddmmyyyy[3]), Number(ddmmyyyy[2]) - 1, Number(ddmmyyyy[1])).getTime()
+      : new Date(date).getTime();
+    unit.timeline.push({
+      date: date || "Date unavailable",
+      timestamp: Number.isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp,
+      stage,
+      status: readColumn(row, mapping.status).toUpperCase() || (stage === "INPUT" ? "REPAIR" : "UNKNOWN"),
+    });
+  }
+  for (const unit of units.values()) {
+    unit.timeline.sort((a, b) => a.timestamp - b.timestamp);
+    const first = unit.timeline[0];
+    if (unit.outputRows > unit.inputRows && first?.stage === "OUTPUT") {
+      unit.carryoverInputs = 1;
+      unit.timeline.unshift({
+        date: `Before ${first.date}`,
+        timestamp: first.timestamp - 1,
+        stage: "INPUT",
+        status: "CARRYOVER",
+      });
+    }
+  }
 
   const cyclesOf = (unit: UnitAgg) =>
     anyInput ? Math.max(unit.inputRows, 1) : Math.max(1, Math.ceil(unit.rowCount / 2));
@@ -731,6 +816,13 @@ export function selectRepeatRepairs(
       material: unit.material,
       model: unit.model,
       company: unit.company,
+      group: unit.group,
+      equipment: unit.equipment,
+      statuses: [...unit.statuses, ...(unit.inputRows > unit.outputRows ? ["ONGOING"] : [])].join(", "),
+      inputRows: unit.inputRows,
+      outputRows: unit.outputRows,
+      carryoverInputs: unit.carryoverInputs,
+      timeline: unit.timeline,
       cycles: cyclesOf(unit),
       rowCount: unit.rowCount,
     }))
@@ -749,10 +841,8 @@ export function selectRepeatRepairs(
     maxCycles: repeats.reduce((max, unit) => Math.max(max, unit.cycles), 0),
     byModel: [...byModelMap.entries()]
       .map(([label, count]) => ({ label, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10),
+      .sort((a, b) => b.count - a.count),
     topUnits: [...repeats]
-      .sort((a, b) => b.cycles - a.cycles || b.rowCount - a.rowCount)
-      .slice(0, 15),
+      .sort((a, b) => b.cycles - a.cycles || b.rowCount - a.rowCount),
   };
 }

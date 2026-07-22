@@ -2,7 +2,7 @@
 
 import { ChartCard, SectionHeading } from "@/components/chart-card";
 
-import { StatusBarChart, StatusPieChart } from "./charts";
+import { StatusPieChart } from "./charts";
 import type { StatusDatum } from "../lib/selectors";
 
 interface StatusOverviewSectionProps {
@@ -10,7 +10,7 @@ interface StatusOverviewSectionProps {
   statuses: StatusDatum[];
 }
 
-/** Side-by-side count bar chart and status-ratio donut. */
+/** Status-ratio donut summarizing the share of each repair record status. */
 export function StatusOverviewSection({
   title,
   statuses,
@@ -18,14 +18,9 @@ export function StatusOverviewSection({
   return (
     <section className="mb-10">
       <SectionHeading>{title}</SectionHeading>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-        <ChartCard title="Records by status" height={300}>
-          <StatusBarChart data={statuses} />
-        </ChartCard>
-        <ChartCard title="Share of repair records" height={300}>
-          <StatusPieChart data={statuses} />
-        </ChartCard>
-      </div>
+      <ChartCard title="Share of repair records" height={300}>
+        <StatusPieChart data={statuses} />
+      </ChartCard>
     </section>
   );
 }

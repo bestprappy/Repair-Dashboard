@@ -23,6 +23,18 @@ export interface GroupCountDatum {
   amount: number;
 }
 
+/** One model/equipment row in the equipment-group status detail table. */
+export interface GroupStatusDetailDatum {
+  status: string;
+  group: string;
+  model: string;
+  equipment: string;
+  inputDate: string;
+  outputDate: string;
+  count: number;
+  amount: number;
+}
+
 /** Sidebar entry: a company and its total record count. */
 export interface CompanyNavItem {
   company: string;
@@ -160,6 +172,60 @@ export function selectCompany(
     activeStatuses: dataset.allStatuses.filter((s) => (data.statusCount[s] ?? 0) > 0),
     groups: monthlySeries(data.monthly, dataset.allMonths),
     data,
+  };
+}
+
+/** Monthly REPAIR-intake demand for the selected dashboard scope. */
+export interface RepairDemandView {
+  /** Intake record count per month, aligned to dataset.allMonths. */
+  values: number[];
+  /** Total intake records across the displayed months. */
+  total: number;
+  /** Arithmetic mean of the displayed monthly counts. */
+  mean: number | null;
+  /** Median of the displayed monthly counts. */
+  median: number | null;
+}
+
+/**
+ * Select monthly repair demand for all companies or one company. The REPAIR
+ * status series is populated from Repaire_Input rows whenever workflow stages
+ * are mapped. Zero-demand buckets remain in the calculation so the reference
+ * lines describe the complete displayed period.
+ */
+export function selectRepairDemand(
+  dataset: RepairDataset,
+  company?: string,
+): RepairDemandView {
+  const scopedData = company
+    ? dataset.companies[company]
+      ? [dataset.companies[company]]
+      : []
+    : Object.values(dataset.companies);
+  const values = dataset.allMonths.map((month) =>
+    scopedData.reduce(
+      (sum, data) => sum + (data.statusMonthly.REPAIR?.[month] ?? 0),
+      0,
+    ),
+  );
+  const total = values.reduce((sum, value) => sum + value, 0);
+
+  if (values.length === 0) {
+    return { values, total, mean: null, median: null };
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 0
+      ? (sorted[middle - 1] + sorted[middle]) / 2
+      : sorted[middle];
+
+  return {
+    values,
+    total,
+    mean: total / values.length,
+    median,
   };
 }
 
@@ -338,4 +404,40 @@ export function selectStatusGroups(
       count: groups[group].count,
       amount: groups[group].amount,
     }));
+}
+
+/** Flatten company group aggregates for the drill-down table. */
+export function selectGroupStatusDetails(
+  data: CompanyData,
+): GroupStatusDetailDatum[] {
+  const rows: GroupStatusDetailDatum[] = [];
+  for (const [status, groups] of Object.entries(data.statusGroups)) {
+    for (const [group, stat] of Object.entries(groups)) {
+      for (const detail of Object.values(stat.details ?? {})) {
+        rows.push({ status, group, ...detail });
+      }
+    }
+  }
+  return rows.sort(
+    (a, b) =>
+      // Missing input dates are intentionally surfaced first for follow-up;
+      // dated repairs then run from the oldest intake to the newest.
+      Number(Boolean(a.inputDate)) - Number(Boolean(b.inputDate)) ||
+      detailDateTime(a.inputDate) - detailDateTime(b.inputDate) ||
+      a.status.localeCompare(b.status) ||
+      a.group.localeCompare(b.group) ||
+      b.count - a.count ||
+      a.model.localeCompare(b.model),
+  );
+}
+
+function detailDateTime(value: string): number {
+  if (!value) return 0;
+  const match = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (match) {
+    const year = Number(match[3]) < 100 ? 2000 + Number(match[3]) : Number(match[3]);
+    return new Date(year, Number(match[2]) - 1, Number(match[1])).getTime();
+  }
+  const direct = new Date(value).getTime();
+  return Number.isNaN(direct) ? Number.MAX_SAFE_INTEGER : direct;
 }

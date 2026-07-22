@@ -42,7 +42,7 @@ export function MonthlyGroupSection({
           No amount data.
         </p>
       ) : selected ? (
-        <div className="max-w-3xl">
+        <div className="w-full">
           <ChartCard title={visible[0].group} height={260}>
             <MonthlyBarChart
               labels={monthLabels}

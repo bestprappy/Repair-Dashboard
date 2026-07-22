@@ -31,6 +31,7 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
   --color-info: var(--info);
+  --color-repair: var(--repair);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -81,6 +82,9 @@
   --warning: oklch(0.72 0.14 78);
   --error: oklch(0.55 0.19 27);
   --info: oklch(0.58 0.14 250);
+  /* Repair-intake accent — a fixed warm yellow used for REPAIR demand bars so
+     "repair volume" reads the same regardless of the active theme accent. */
+  --repair: oklch(0.8 0.15 88);
   --border: oklch(0.918 calc(0.011 * var(--theme-tint)) var(--theme-hue));
   --input: oklch(0.918 calc(0.011 * var(--theme-tint)) var(--theme-hue));
   --ring: oklch(0.596 0.205 275);
@@ -125,6 +129,7 @@
   --warning: oklch(0.78 0.13 85);
   --error: oklch(0.68 0.16 25);
   --info: oklch(0.74 0.12 245);
+  --repair: oklch(0.82 0.15 90);
   --border: oklch(0.315 calc(0.016 * var(--theme-tint)) var(--theme-hue));
   --input: oklch(0.32 calc(0.017 * var(--theme-tint)) var(--theme-hue));
   --ring: oklch(0.72 0.16 275);

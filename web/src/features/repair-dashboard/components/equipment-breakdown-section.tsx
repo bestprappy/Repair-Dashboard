@@ -38,7 +38,7 @@ export function EquipmentBreakdownSection({ view }: { view: BreakdownView }) {
         ) : null}
         {hasGroups ? (
           <ChartCard
-            title="Most active equipment groups"
+            title="Most repaired equipment groups"
             height={rankHeight(view.topGroups.length)}
           >
             <RankBarChart

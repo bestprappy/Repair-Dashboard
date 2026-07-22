@@ -7,16 +7,14 @@ import {
   Database,
   LayoutDashboard,
   Route,
+  Timer,
 } from "lucide-react";
 import { useAtom } from "jotai";
 
 import { cn } from "@/lib/utils";
 
 import type { CompanyNavItem } from "../lib/selectors";
-import {
-  INSIGHTS_VIEW,
-  RECOMMENDATION_VIEW,
-} from "../lib/types";
+import { INSIGHTS_VIEW, RECOMMENDATION_VIEW, SLA_VIEW } from "../lib/types";
 import { viewAtom } from "../state/atoms";
 
 interface DashboardSidebarProps {
@@ -55,6 +53,12 @@ export function DashboardSidebar({ grandTotal, companies }: DashboardSidebarProp
         </div>
 
         <SidebarLabel className="mt-6">Analysis</SidebarLabel>
+        <SidebarTab
+          name="SLA & Overdue"
+          icon={Timer}
+          active={view === SLA_VIEW}
+          onSelect={() => setView(SLA_VIEW)}
+        />
         <SidebarTab
           name="Repair recommendation"
           icon={Route}

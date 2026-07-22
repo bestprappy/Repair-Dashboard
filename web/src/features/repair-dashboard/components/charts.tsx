@@ -8,13 +8,14 @@ import {
   LabelList,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-import { formatCompact, formatCurrency, statusColor } from "../lib/transform";
+import { formatCompact, formatCurrency, paletteColor, statusColor } from "../lib/transform";
 import { OTHER_STATUS } from "../lib/selectors";
 import type {
   CompanyStatDatum,
@@ -37,6 +38,48 @@ const tooltipStyle = {
   boxShadow: "0 12px 32px color-mix(in oklch, var(--foreground) 12%, transparent)",
   padding: "10px 12px",
 } as const;
+
+interface BreakdownPieChartProps {
+  data: { label: string; count: number }[];
+  selectedLabel?: string | null;
+  onSelect?: (label: string) => void;
+}
+
+/** Interactive donut with a compact legend for categorical repair breakdowns. */
+export function BreakdownPieChart({ data, selectedLabel, onSelect }: BreakdownPieChartProps) {
+  const visible = data.filter((item) => item.count > 0);
+  const total = visible.reduce((sum, item) => sum + item.count, 0);
+
+  return (
+    <div className="grid h-full min-h-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,0.7fr)]">
+      <div className="relative min-h-52">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Tooltip contentStyle={tooltipStyle} formatter={(value) => [toNum(value).toLocaleString(), "Repairs"]} />
+            <Pie data={visible} dataKey="count" nameKey="label" innerRadius="55%" outerRadius="88%" paddingAngle={1.5} stroke="var(--card)" strokeWidth={2} isAnimationActive={false}>
+              {visible.map((item, index) => (
+                <Cell key={item.label} fill={paletteColor(index)} fillOpacity={!selectedLabel || selectedLabel === item.label ? 1 : 0.3} cursor={onSelect ? "pointer" : undefined} onClick={() => onSelect?.(item.label)} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="font-heading text-xl font-semibold tabular-nums">{formatCompact(total)}</span>
+          <span className="text-[10px] text-muted-foreground">repairs</span>
+        </div>
+      </div>
+      <div className="max-h-full overflow-y-auto py-1">
+        {visible.map((item, index) => (
+          <button key={item.label} type="button" onClick={() => onSelect?.(item.label)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted">
+            <span className="size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: paletteColor(index) }} />
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            <span className="font-semibold tabular-nums">{item.count.toLocaleString()}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** Coerce a recharts value/label (string | number | array) into a number. */
 function toNum(value: unknown): number {
@@ -226,6 +269,109 @@ export function MonthlyBarChart({
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+interface RepairDemandChartProps {
+  labels: string[];
+  values: number[];
+  mean: number | null;
+  median: number | null;
+}
+
+/**
+ * Monthly REPAIR-intake bars with distinct mean and median reference lines.
+ * The exact values are shown in the card header, so the lines carry no labels.
+ */
+export function RepairDemandChart({
+  labels,
+  values,
+  mean,
+  median,
+}: RepairDemandChartProps) {
+  const data = labels.map((label, index) => ({
+    label,
+    value: values[index] ?? 0,
+  }));
+  const showLabels = labels.length <= 14;
+
+  return (
+    <div
+      className="h-full"
+      role="img"
+      aria-label="Monthly REPAIR input demand with mean and median reference lines"
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 28, right: 14, left: 0, bottom: 4 }}>
+          <CartesianGrid
+            vertical={false}
+            stroke={GRID_STROKE}
+            strokeDasharray="4 5"
+          />
+          <XAxis
+            dataKey="label"
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            interval={0}
+            angle={-30}
+            textAnchor="end"
+            height={48}
+          />
+          <YAxis
+            allowDecimals={false}
+            tick={AXIS_TICK}
+            tickFormatter={formatCompact}
+            tickLine={false}
+            axisLine={false}
+            width={44}
+          />
+          <Tooltip
+            cursor={{ fill: "var(--primary)", opacity: 0.06 }}
+            contentStyle={tooltipStyle}
+            formatter={(value) => [
+              toNum(value).toLocaleString(),
+              "Repair inputs",
+            ]}
+          />
+          {mean != null ? (
+            <ReferenceLine
+              y={mean}
+              stroke="var(--primary)"
+              strokeWidth={2}
+              strokeDasharray="7 5"
+            />
+          ) : null}
+          {median != null ? (
+            <ReferenceLine
+              y={median}
+              stroke="var(--chart-2)"
+              strokeWidth={2}
+              strokeDasharray="3 4"
+            />
+          ) : null}
+          <Bar
+            dataKey="value"
+            radius={[5, 5, 0, 0]}
+            fill="var(--repair)"
+            isAnimationActive={false}
+          >
+            {showLabels ? (
+              <LabelList
+                dataKey="value"
+                position="top"
+                fill={LABEL_FILL}
+                fontSize={10}
+                fontWeight={700}
+                formatter={(value) =>
+                  toNum(value) > 0 ? formatCompact(toNum(value)) : ""
+                }
+              />
+            ) : null}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -423,6 +569,10 @@ interface RankBarChartProps {
   /** Optional selection for relationship drill-downs. */
   selectedLabel?: string;
   onSelect?: (label: string) => void;
+  /** Optional suffix for axis, tooltip, and data-label values (for example "%"). */
+  valueSuffix?: string;
+  /** Fixed numeric-axis maximum, useful for percentage charts. */
+  domainMax?: number;
 }
 
 /** Horizontal top-N bars for one labeled count series (models, causes…). */
@@ -432,6 +582,8 @@ export function RankBarChart({
   name,
   selectedLabel,
   onSelect,
+  valueSuffix = "",
+  domainMax,
 }: RankBarChartProps) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -443,8 +595,9 @@ export function RankBarChart({
         <CartesianGrid horizontal={false} stroke={GRID_STROKE} strokeDasharray="4 5" />
         <XAxis
           type="number"
+          domain={domainMax == null ? undefined : [0, domainMax]}
           tick={AXIS_TICK}
-          tickFormatter={(value) => formatCompact(toNum(value))}
+          tickFormatter={(value) => `${formatCompact(toNum(value))}${valueSuffix}`}
           tickLine={false}
           axisLine={false}
         />
@@ -464,7 +617,7 @@ export function RankBarChart({
         <Tooltip
           cursor={{ fill: "var(--primary)", opacity: 0.06 }}
           contentStyle={tooltipStyle}
-          formatter={(value) => [toNum(value).toLocaleString(), name]}
+          formatter={(value) => [`${toNum(value).toLocaleString()}${valueSuffix}`, name]}
         />
         <Bar
           dataKey="count"
@@ -492,7 +645,7 @@ export function RankBarChart({
             fill={LABEL_FILL}
             fontSize={10}
             fontWeight={700}
-            formatter={(value) => toNum(value).toLocaleString()}
+            formatter={(value) => `${toNum(value).toLocaleString()}${valueSuffix}`}
           />
         </Bar>
       </BarChart>
@@ -503,10 +656,17 @@ export function RankBarChart({
 interface GroupCountChartProps {
   data: GroupCountDatum[];
   color: string;
+  selectedGroup?: string;
+  onSelect?: (group: string) => void;
 }
 
 /** Group count bars; switches to horizontal layout when there are many groups. */
-export function GroupCountChart({ data, color }: GroupCountChartProps) {
+export function GroupCountChart({
+  data,
+  color,
+  selectedGroup,
+  onSelect,
+}: GroupCountChartProps) {
   const horizontal = data.length > 4;
 
   const tooltip = (
@@ -554,6 +714,17 @@ export function GroupCountChart({ data, color }: GroupCountChartProps) {
             fill={color}
             isAnimationActive={false}
           >
+            {onSelect
+              ? data.map((entry) => (
+                  <Cell
+                    key={entry.group}
+                    fill={color}
+                    fillOpacity={!selectedGroup || selectedGroup === entry.group ? 1 : 0.38}
+                    cursor="pointer"
+                    onClick={() => onSelect(entry.group)}
+                  />
+                ))
+              : null}
             <LabelList
               dataKey="count"
               position="right"
@@ -596,6 +767,17 @@ export function GroupCountChart({ data, color }: GroupCountChartProps) {
           fill={color}
           isAnimationActive={false}
         >
+          {onSelect
+            ? data.map((entry) => (
+                <Cell
+                  key={entry.group}
+                  fill={color}
+                  fillOpacity={!selectedGroup || selectedGroup === entry.group ? 1 : 0.38}
+                  cursor="pointer"
+                  onClick={() => onSelect(entry.group)}
+                />
+              ))
+            : null}
           <LabelList
             dataKey="count"
             position="top"
