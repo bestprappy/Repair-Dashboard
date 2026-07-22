@@ -30,7 +30,7 @@ import {
   filteredDatasetAtom,
   filteredRowsAtom,
   mappingAtom,
-  rawRowsAtom,
+  validRawRowsAtom,
 } from "../state/atoms";
 
 interface CompanyViewProps {
@@ -40,7 +40,7 @@ interface CompanyViewProps {
 
 /** Detailed operational dashboard for a single repair company. */
 export function CompanyView({ dataset, company }: CompanyViewProps) {
-  const rows = useAtomValue(rawRowsAtom);
+  const rows = useAtomValue(validRawRowsAtom);
   const mapping = useAtomValue(mappingAtom);
   const filteredRows = useAtomValue(filteredRowsAtom);
   const filteredDataset = useAtomValue(filteredDatasetAtom) ?? dataset;
@@ -126,6 +126,9 @@ export function CompanyView({ dataset, company }: CompanyViewProps) {
       <StatusOverviewSection
         title="Current status mix"
         statuses={view.statuses}
+        rows={filteredRows}
+        mapping={mapping}
+        company={company}
       />
       <WorkflowFlowSection flows={workflowFlows} />
       <GroupCountSection

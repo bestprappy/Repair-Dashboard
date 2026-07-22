@@ -9,11 +9,11 @@ import { DateRangeControl } from "./date-range-control";
 import { SlaSection } from "./sla-section";
 import { filterAnalyzedRows } from "../lib/insights";
 import type { RepairDataset } from "../lib/types";
-import { mappingAtom, rawRowsAtom } from "../state/atoms";
+import { mappingAtom, validRawRowsAtom } from "../state/atoms";
 
 /** Dedicated page for SLA turnaround, aging, and overdue open repairs. */
 export function SlaOverdueView({ dataset }: { dataset: RepairDataset }) {
-  const rows = useAtomValue(rawRowsAtom);
+  const rows = useAtomValue(validRawRowsAtom);
   const mapping = useAtomValue(mappingAtom);
 
   const allAnalyzedRows = useMemo(

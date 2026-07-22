@@ -1,7 +1,13 @@
 import { atom } from "jotai";
 
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
-import { buildDataset, parseYM, readColumn } from "../lib/transform";
+import {
+  buildDataset,
+  invalidSerialReason,
+  isExcludedTabSheet,
+  parseYM,
+  readColumn,
+} from "../lib/transform";
 import type {
   ColumnMapping,
   CsvRow,
@@ -108,8 +114,8 @@ export const DEFAULT_END_MONTH = `${CURRENT_YEAR}-12`;
 export const startMonthAtom = atom(DEFAULT_START_MONTH);
 export const endMonthAtom = atom(DEFAULT_END_MONTH);
 
-/** Raw rows narrowed to the selected reporting window. */
-export const filteredRowsAtom = atom((get) => {
+/** All source rows narrowed to the selected reporting window. */
+const reportingRowsAtom = atom((get) => {
   const rows = get(rawRowsAtom);
   const mapping = get(mappingAtom);
   // Without a mapped Y&M column there is no date to filter on.
@@ -120,6 +126,39 @@ export const filteredRowsAtom = atom((get) => {
     const month = parseYM(readColumn(row, mapping.ym));
     return month != null && month >= start && month <= end;
   });
+});
+
+/** Data-quality exceptions retained for audit but excluded from analytics. */
+export const missingSerialRowsAtom = atom((get) => {
+  const mapping = get(mappingAtom);
+  if (!mapping.serial) return [];
+  return get(reportingRowsAtom).filter((row) => {
+    const stage = readColumn(row, mapping.tabSheet);
+    if (mapping.tabSheet && (isExcludedTabSheet(stage) || !/(input|output)/i.test(stage))) {
+      return false;
+    }
+    return Boolean(invalidSerialReason(readColumn(row, mapping.serial)));
+  });
+});
+
+/** Complete valid history used by analyses that pair events across periods. */
+export const validRawRowsAtom = atom((get) => {
+  const mapping = get(mappingAtom);
+  const rows = get(rawRowsAtom);
+  if (!mapping.serial) return rows;
+  return rows.filter(
+    (row) => !invalidSerialReason(readColumn(row, mapping.serial)),
+  );
+});
+
+/** Reporting rows eligible for every dashboard calculation. */
+export const filteredRowsAtom = atom((get) => {
+  const mapping = get(mappingAtom);
+  const rows = get(reportingRowsAtom);
+  if (!mapping.serial) return rows;
+  return rows.filter(
+    (row) => !invalidSerialReason(readColumn(row, mapping.serial)),
+  );
 });
 
 /**

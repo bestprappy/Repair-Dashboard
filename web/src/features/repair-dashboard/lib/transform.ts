@@ -172,6 +172,20 @@ export function isExcludedTabSheet(value: string): boolean {
   return EXCLUDED_TAB_SHEETS.test(value);
 }
 
+/** Whether a serial cell is blank, a placeholder, or descriptive text. */
+export function invalidSerialReason(value: string): string | null {
+  const serial = value.trim();
+  if (!serial) return "Blank";
+  if (/^(?:-|—|N\/?A|NA|NONE|NULL|UNKNOWN|NOT[ _-]?AVAILABLE)$/i.test(serial)) {
+    return "Placeholder value";
+  }
+  // Serial identifiers in this dataset are Latin letters/digits. Thai text
+  // such as "ผิดรุ่น" is an operator note, not a trackable unit identifier.
+  if (/[\u0E00-\u0E7F]/.test(serial)) return "Descriptive text";
+  if (!/[A-Z0-9]/i.test(serial)) return "Invalid format";
+  return null;
+}
+
 function isRepairInputStage(value: string): boolean {
   return !isExcludedTabSheet(value) && /input/i.test(value);
 }
@@ -271,6 +285,9 @@ export function buildDataset(
     });
 
   for (const row of rows) {
+    // Rows without the mapped unit identifier remain available to the
+    // data-quality view but must not influence dashboard calculations.
+    if (mapping.serial && invalidSerialReason(readColumn(row, mapping.serial))) continue;
     const company = (row[mapping.company] ?? "").trim();
     const status = (row[mapping.status] ?? "").trim().toUpperCase();
     const group = (row[mapping.group] ?? "Unknown").trim() || "Unknown";

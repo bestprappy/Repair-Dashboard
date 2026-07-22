@@ -14,7 +14,11 @@ import { useAtom } from "jotai";
 import { cn } from "@/lib/utils";
 
 import type { CompanyNavItem } from "../lib/selectors";
-import { INSIGHTS_VIEW, RECOMMENDATION_VIEW, SLA_VIEW } from "../lib/types";
+import {
+  INSIGHTS_VIEW,
+  RECOMMENDATION_VIEW,
+  SLA_VIEW,
+} from "../lib/types";
 import { viewAtom } from "../state/atoms";
 
 interface DashboardSidebarProps {

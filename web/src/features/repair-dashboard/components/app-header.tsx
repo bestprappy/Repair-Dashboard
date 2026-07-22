@@ -19,7 +19,10 @@ import {
 import { ThemeColorMenu } from "@/components/theme-color-menu";
 
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
-import { INSIGHTS_VIEW, RECOMMENDATION_VIEW } from "../lib/types";
+import {
+  INSIGHTS_VIEW,
+  RECOMMENDATION_VIEW,
+} from "../lib/types";
 import {
   dataSourceAtom,
   datasetAtom,

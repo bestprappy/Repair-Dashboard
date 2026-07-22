@@ -14,6 +14,7 @@ import { DateRangeControl } from "./date-range-control";
 import { EquipmentBreakdownSection } from "./equipment-breakdown-section";
 import { MonthlyGroupSection } from "./monthly-group-section";
 import { MonthlySpendSection } from "./monthly-spend-section";
+import { MissingSerialSection } from "./missing-serial-section";
 import { RepairDemandSection } from "./repair-demand-section";
 import { StatusOverviewSection } from "./status-overview-section";
 import { WorkflowFlowSection } from "./workflow-flow-section";
@@ -30,14 +31,16 @@ import {
   filteredDatasetAtom,
   filteredRowsAtom,
   mappingAtom,
-  rawRowsAtom,
+  missingSerialRowsAtom,
+  validRawRowsAtom,
 } from "../state/atoms";
 
 /** Aggregate operational dashboard across every company. */
 export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
-  const rows = useAtomValue(rawRowsAtom);
+  const rows = useAtomValue(validRawRowsAtom);
   const mapping = useAtomValue(mappingAtom);
   const filteredRows = useAtomValue(filteredRowsAtom);
+  const missingSerialRows = useAtomValue(missingSerialRowsAtom);
   const filteredDataset = useAtomValue(filteredDatasetAtom) ?? dataset;
   const view = useMemo(
     () => selectAllCompanies(filteredDataset),
@@ -118,7 +121,10 @@ export function AllCompaniesView({ dataset }: { dataset: RepairDataset }) {
       <StatusOverviewSection
         title="Current status mix"
         statuses={view.statuses}
+        rows={filteredRows}
+        mapping={mapping}
       />
+      <MissingSerialSection rows={missingSerialRows} mapping={mapping} />
       <WorkflowFlowSection flows={workflowFlows} />
       <CompanyComparisonSection companyStats={view.companyStats} />
       <EquipmentBreakdownSection view={breakdown} />

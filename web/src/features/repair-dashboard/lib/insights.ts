@@ -693,6 +693,7 @@ export interface RepeatAnalysis {
   repeatSharePct: number;
   maxCycles: number;
   byModel: RankDatum[];
+  byEquipment: RankDatum[];
   topUnits: RepeatUnit[];
 }
 
@@ -829,9 +830,14 @@ export function selectRepeatRepairs(
     .filter((unit) => unit.cycles >= 2);
 
   const byModelMap = new Map<string, number>();
+  const byEquipmentMap = new Map<string, number>();
   for (const unit of repeats) {
-    const label = unit.model || "Unknown model";
-    byModelMap.set(label, (byModelMap.get(label) ?? 0) + 1);
+    const model = unit.model || "Unknown model";
+    // Dashboard users refer to the mapped equipment group (for example AU or
+    // Rectifier) as "equipment"; the narrower Equipment field is unit detail.
+    const equipment = unit.group || "Unknown equipment";
+    byModelMap.set(model, (byModelMap.get(model) ?? 0) + 1);
+    byEquipmentMap.set(equipment, (byEquipmentMap.get(equipment) ?? 0) + 1);
   }
 
   return {
@@ -840,6 +846,9 @@ export function selectRepeatRepairs(
     repeatSharePct: (repeats.length / units.size) * 100,
     maxCycles: repeats.reduce((max, unit) => Math.max(max, unit.cycles), 0),
     byModel: [...byModelMap.entries()]
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count),
+    byEquipment: [...byEquipmentMap.entries()]
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count),
     topUnits: [...repeats]

@@ -12,11 +12,11 @@ import { ModelDeepDiveSection } from "./model-deep-dive-section";
 import { RepeatRepairsSection } from "./repeat-repairs-section";
 import { filterAnalyzedRows, getRowYear } from "../lib/insights";
 import type { RepairDataset } from "../lib/types";
-import { csvFieldsAtom, mappingAtom, rawRowsAtom } from "../state/atoms";
+import { csvFieldsAtom, mappingAtom, validRawRowsAtom } from "../state/atoms";
 
 /** Model analysis, repeat repairs, and raw-row drill-downs. */
 export function InsightsView({ dataset }: { dataset: RepairDataset }) {
-  const rows = useAtomValue(rawRowsAtom);
+  const rows = useAtomValue(validRawRowsAtom);
   const fields = useAtomValue(csvFieldsAtom);
   const mapping = useAtomValue(mappingAtom);
   const [explorerUnit, setExplorerUnit] = useState<{ serial: string; material: string } | null>(null);
