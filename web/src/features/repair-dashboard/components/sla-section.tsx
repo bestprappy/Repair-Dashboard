@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAtomValue } from "jotai";
 import { ArrowUpDown, Download, Timer } from "lucide-react";
 
@@ -53,14 +53,17 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
   const [mode, setMode] = useState<RepairMode>("ongoing");
   const [traceQuery, setTraceQuery] = useState("");
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [companyMenuScope, setCompanyMenuScope] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [ageFilter, setAgeFilter] = useState<{ minDays: number; maxDays: number | null; label: string } | null>(null);
+  const [companySelectionFromMenu, setCompanySelectionFromMenu] = useState(false);
+  const [groupSelectionFromMenu, setGroupSelectionFromMenu] = useState(false);
+  const [ageSelectionFromMenu, setAgeSelectionFromMenu] = useState(false);
   const [tracePage, setTracePage] = useState(0);
   const [traceSort, setTraceSort] = useState<TraceSortKey>("age");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const startMonth = useAtomValue(startMonthAtom);
   const endMonth = useAtomValue(endMonthAtom);
-  const tracebackRef = useRef<HTMLDivElement>(null);
   const analysis = useMemo(() => selectSlaAnalysis(rows, mapping, target), [rows, mapping, target]);
   const isCompleted = mode === "completed";
   const openInRange = useMemo(
@@ -106,24 +109,37 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
     }));
   }, [completedInRange, openInRange, isCompleted, selectedCompanies, selectedGroup]);
   const activeCycles = isCompleted ? completedInRange : openInRange;
-  const companyBreakdown = useMemo(() => {
+  const companyOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const cycle of activeCycles) {
+      const group = cycle.group || "Unknown group";
+      if (selectedGroup != null && group !== selectedGroup) continue;
+      if (ageFilter != null && !(cycle.days > ageFilter.minDays && (ageFilter.maxDays == null || cycle.days <= ageFilter.maxDays))) continue;
       const company = cycle.company || "Unknown";
       counts.set(company, (counts.get(company) ?? 0) + 1);
     }
     return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-  }, [activeCycles]);
-  const equipmentBreakdown = useMemo(() => {
+  }, [activeCycles, selectedGroup, ageFilter]);
+  const companyBreakdown = companySelectionFromMenu && companyMenuScope.length > 0
+    ? companyOptions.filter((company) => companyMenuScope.includes(company.label))
+    : companyOptions;
+  const equipmentOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const cycle of activeCycles) {
       const company = cycle.company || "Unknown";
       if (selectedCompanies.length > 0 && !selectedCompanies.includes(company)) continue;
+      if (ageFilter != null && !(cycle.days > ageFilter.minDays && (ageFilter.maxDays == null || cycle.days <= ageFilter.maxDays))) continue;
       const group = cycle.group || "Unknown group";
       counts.set(group, (counts.get(group) ?? 0) + 1);
     }
     return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
-  }, [activeCycles, selectedCompanies]);
+  }, [activeCycles, selectedCompanies, ageFilter]);
+  const equipmentBreakdown = groupSelectionFromMenu && selectedGroup != null
+    ? equipmentOptions.filter((group) => group.label === selectedGroup)
+    : equipmentOptions;
+  const displayedDurationBuckets = ageSelectionFromMenu && ageFilter != null
+    ? durationBuckets.filter((bucket) => bucket.label === ageFilter.label)
+    : durationBuckets;
   const companySla = useMemo(() => {
     const companies = new Map<string, SlaCycle[]>();
     for (const cycle of completedInRange) {
@@ -184,12 +200,22 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
   const safeTracePage = Math.min(tracePage, tracePageCount - 1);
   const visibleRows = traced.slice(safeTracePage * TRACEBACK_PAGE_SIZE, (safeTracePage + 1) * TRACEBACK_PAGE_SIZE);
   const columnCount = 10;
+  const displayedCompanySelections = companySelectionFromMenu ? companyMenuScope : selectedCompanies;
+  const filterSummary = [
+    displayedCompanySelections.length > 0 ? `${displayedCompanySelections.length} ${displayedCompanySelections.length === 1 ? "company" : "companies"}` : null,
+    selectedGroup,
+    ageFilter?.label,
+  ].filter((value): value is string => value != null).join(" · ") || "All filters";
 
   const switchMode = (next: RepairMode) => {
     setMode(next);
     setSelectedCompanies([]);
+    setCompanyMenuScope([]);
     setSelectedGroup(null);
     setAgeFilter(null);
+    setCompanySelectionFromMenu(false);
+    setGroupSelectionFromMenu(false);
+    setAgeSelectionFromMenu(false);
     setTracePage(0);
   };
 
@@ -204,8 +230,8 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
 
   const selectDuration = (bucket: { minDays: number; maxDays: number | null; label: string }) => {
     setAgeFilter((current) => current?.label === bucket.label ? null : bucket);
+    setAgeSelectionFromMenu(false);
     setTracePage(0);
-    requestAnimationFrame(() => tracebackRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   const downloadTracebackCsv = () => {
@@ -258,17 +284,21 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
               {([['ongoing', 'Ongoing'], ['completed', 'Completed']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => switchMode(value)} aria-pressed={mode === value} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === value ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>)}
             </div>
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button type="button" variant="outline">{selectedCompanies.length === 0 ? "All companies" : `${selectedCompanies.length} companies`}</Button>} />
-              <DropdownMenuContent align="end" className="max-h-80 min-w-56">
+              <DropdownMenuTrigger render={<Button type="button" variant="outline" className="max-w-full truncate">{filterSummary}</Button>} />
+              <DropdownMenuContent align="end" className="max-h-96 min-w-64 overflow-y-auto">
                 <DropdownMenuGroup>
-                  <DropdownMenuLabel>Filter companies</DropdownMenuLabel>
-                  {companyBreakdown.map((company) => (
+                  <DropdownMenuLabel>Companies</DropdownMenuLabel>
+                  {companyOptions.map((company) => (
                     <DropdownMenuCheckboxItem
                       key={company.label}
-                      checked={selectedCompanies.includes(company.label)}
+                      checked={displayedCompanySelections.includes(company.label)}
                       onCheckedChange={(checked) => {
-                        setSelectedCompanies((current) => checked ? [...current, company.label] : current.filter((item) => item !== company.label));
-                        setSelectedGroup(null);
+                        const next = checked
+                          ? [...new Set([...displayedCompanySelections, company.label])]
+                          : displayedCompanySelections.filter((item) => item !== company.label);
+                        setCompanyMenuScope(next);
+                        setSelectedCompanies(next);
+                        setCompanySelectionFromMenu(true);
                         setTracePage(0);
                       }}
                     >
@@ -277,31 +307,64 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuGroup>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Equipment groups</DropdownMenuLabel>
+                  {equipmentOptions.map((group) => (
+                    <DropdownMenuCheckboxItem
+                      key={group.label}
+                      checked={selectedGroup === group.label}
+                      onCheckedChange={(checked) => {
+                        setSelectedGroup(checked ? group.label : null);
+                        setGroupSelectionFromMenu(checked);
+                        setTracePage(0);
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{group.label}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground">{group.count.toLocaleString()}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>{isCompleted ? "Turnaround" : "Aging"}</DropdownMenuLabel>
+                  {durationBuckets.map((bucket) => (
+                    <DropdownMenuCheckboxItem
+                      key={bucket.label}
+                      checked={ageFilter?.label === bucket.label}
+                      onCheckedChange={(checked) => {
+                        setAgeFilter(checked ? bucket : null);
+                        setAgeSelectionFromMenu(checked);
+                        setTracePage(0);
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{bucket.label}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground">{bucket.count.toLocaleString()}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <ChartCard title={`${isCompleted ? "Completed" : "Ongoing"} repairs by company`} subtitle="Select a slice to show only that company in the table." height={330}>
+            <ChartCard title={`${isCompleted ? "Completed" : "Ongoing"} repairs by company`} subtitle="Uses the selected equipment group and aging range. Select a slice to further filter the dashboard." height={330}>
               <BreakdownPieChart
                 data={companyBreakdown}
                 selectedLabel={selectedCompanies.length === 1 ? selectedCompanies[0] : null}
                 onSelect={(company) => {
                   setSelectedCompanies((current) => current.length === 1 && current[0] === company ? [] : [company]);
-                  setSelectedGroup(null);
+                  if (companyMenuScope.length === 0) setCompanySelectionFromMenu(false);
                   setTracePage(0);
-                  requestAnimationFrame(() => tracebackRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
                 }}
               />
             </ChartCard>
-            <ChartCard title={`${isCompleted ? "Completed" : "Ongoing"} repairs by equipment group`} subtitle="Uses the selected companies. Select a slice to further filter the table." height={330}>
+            <ChartCard title={`${isCompleted ? "Completed" : "Ongoing"} repairs by equipment group`} subtitle="Uses the selected companies and aging range. Select a slice to further filter the dashboard." height={330}>
               <BreakdownPieChart
                 data={equipmentBreakdown}
                 selectedLabel={selectedGroup}
                 onSelect={(group) => {
                   setSelectedGroup((current) => current === group ? null : group);
+                  setGroupSelectionFromMenu(false);
                   setTracePage(0);
-                  requestAnimationFrame(() => tracebackRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
                 }}
               />
             </ChartCard>
@@ -310,11 +373,11 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
           <div className="mt-4">
             <ChartCard
               title={isCompleted ? "Completed repair turnaround" : "Ongoing repair aging"}
-              subtitle="Select a duration bar to filter the traceback table below. Select it again to clear the filter."
+              subtitle="Select a duration bar to filter the charts and traceback table. Select it again to clear the filter."
               height={300}
             >
               <RankBarChart
-                data={durationBuckets.map((bucket) => ({ label: bucket.label, count: bucket.count }))}
+                data={displayedDurationBuckets.map((bucket) => ({ label: bucket.label, count: bucket.count }))}
                 color={isCompleted ? "var(--success)" : "var(--warning)"}
                 name="Repairs"
                 selectedLabel={ageFilter?.label}
@@ -326,7 +389,7 @@ export function SlaSection({ rows, mapping }: { rows: CsvRow[]; mapping: ColumnM
             </ChartCard>
           </div>
 
-          <Card ref={tracebackRef} className="mt-4 scroll-mt-4 gap-4 rounded-xl px-5 py-5 shadow-xs ring-0">
+          <Card className="mt-4 gap-4 rounded-xl px-5 py-5 shadow-xs ring-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h3 className="font-heading font-semibold">{isCompleted ? "Completed repair traceback" : "Ongoing repair traceback"}</h3>
