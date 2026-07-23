@@ -14,12 +14,10 @@ import type { ColumnMapping, CsvRow } from "./types";
 /** Composite grade bands. Higher composite scores earn earlier letters. */
 export type ScorecardGrade = "A" | "B" | "C" | "D" | "F";
 
-/** Weights for the composite score. Only directional, target-bearing metrics
- * contribute: PASS quality (primary) and SLA compliance. Repeat repair and
- * cost stay descriptive and never move the grade, matching the model
- * recommendation methodology. */
-export const QUALITY_WEIGHT = 0.7;
-export const SLA_WEIGHT = 0.3;
+/** Weights for quality, completed turnaround, and unresolved backlog risk. */
+export const QUALITY_WEIGHT = 0.45;
+export const SLA_WEIGHT = 0.35;
+export const OPEN_RISK_WEIGHT = 0.2;
 
 /** Minimum completed SLA cycles before compliance is trusted in the grade. */
 export const MIN_SLA_CYCLES = 5;
@@ -63,6 +61,14 @@ export interface VendorScore {
   slaMedianDays: number | null;
   slaCompliancePct: number | null;
 
+  // Open repair risk
+  openRepairs: number;
+  overdueOpenRepairs: number;
+  overdueOpenRate: number | null;
+  medianOpenDays: number | null;
+  oldestOpenDays: number | null;
+  openRepairScore: number | null;
+
   // Repeat repair (descriptive)
   trackedUnits: number;
   repeatUnits: number;
@@ -89,8 +95,9 @@ export interface VendorScorecard {
   totalRecords: number;
   minimumVerdicts: number;
   targetDays: number;
-  weights: { quality: number; sla: number };
+  weights: { quality: number; sla: number; openRisk: number };
   slaAvailable: boolean;
+  openRiskAvailable: boolean;
   repeatAvailable: boolean;
   costAvailable: boolean;
   identifiersMapped: boolean;
@@ -140,6 +147,14 @@ export function selectVendorScorecard(
   const slaByCompany = new Map(
     sla.companies.map((company) => [company.company, company]),
   );
+  const openByCompany = new Map<string, typeof sla.open>();
+  for (const cycle of [...sla.open, ...sla.carryoverOpen]) {
+    const company = cycle.company || "Unknown";
+    openByCompany.set(company, [
+      ...(openByCompany.get(company) ?? []),
+      cycle,
+    ]);
+  }
 
   const byCompany = new Map<string, VendorAccumulator>();
 
@@ -236,6 +251,17 @@ export function selectVendorScorecard(
         slaEntry && slaCompletedCycles >= MIN_SLA_CYCLES
           ? slaEntry.compliancePct
           : null;
+      const openCycles = openByCompany.get(company) ?? [];
+      const openRepairs = openCycles.length;
+      const overdueOpenRepairs = openCycles.filter(
+        (cycle) => !cycle.withinSla,
+      ).length;
+      const overdueOpenRate =
+        openRepairs > 0 ? (overdueOpenRepairs / openRepairs) * 100 : 0;
+      const openAges = openCycles.map((cycle) => cycle.days);
+      const medianOpenDays = openAges.length ? median(openAges) : null;
+      const oldestOpenDays = openAges.length ? Math.max(...openAges) : null;
+      const openRepairScore = sla.available ? 100 - overdueOpenRate : null;
 
       const eligible =
         completedVerdicts >= MIN_RECOMMENDATION_VERDICTS &&
@@ -243,10 +269,23 @@ export function selectVendorScorecard(
 
       let compositeScore: number | null = null;
       if (eligible && qualityScore != null) {
+        const metrics = [
+          { value: qualityScore, weight: QUALITY_WEIGHT },
+          { value: slaCompliancePct, weight: SLA_WEIGHT },
+          { value: openRepairScore, weight: OPEN_RISK_WEIGHT },
+        ].filter(
+          (metric): metric is { value: number; weight: number } =>
+            metric.value != null,
+        );
+        const availableWeight = metrics.reduce(
+          (sum, metric) => sum + metric.weight,
+          0,
+        );
         compositeScore =
-          slaCompliancePct != null
-            ? QUALITY_WEIGHT * qualityScore + SLA_WEIGHT * slaCompliancePct
-            : qualityScore;
+          metrics.reduce(
+            (sum, metric) => sum + metric.value * metric.weight,
+            0,
+          ) / availableWeight;
       }
 
       return {
@@ -260,6 +299,12 @@ export function selectVendorScorecard(
         slaCompletedCycles,
         slaMedianDays,
         slaCompliancePct,
+        openRepairs,
+        overdueOpenRepairs,
+        overdueOpenRate,
+        medianOpenDays,
+        oldestOpenDays,
+        openRepairScore,
         trackedUnits,
         repeatUnits,
         repeatRate,
@@ -307,8 +352,13 @@ export function selectVendorScorecard(
     ),
     minimumVerdicts: MIN_RECOMMENDATION_VERDICTS,
     targetDays,
-    weights: { quality: QUALITY_WEIGHT, sla: SLA_WEIGHT },
+    weights: {
+      quality: QUALITY_WEIGHT,
+      sla: SLA_WEIGHT,
+      openRisk: OPEN_RISK_WEIGHT,
+    },
     slaAvailable: sla.available,
+    openRiskAvailable: sla.available,
     repeatAvailable: vendors.some((vendor) => vendor.repeatRate != null),
     costAvailable: vendors.some((vendor) => vendor.medianAmount != null),
     identifiersMapped,

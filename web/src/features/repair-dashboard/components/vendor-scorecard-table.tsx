@@ -20,6 +20,7 @@ import { formatCurrency } from "../lib/transform";
 interface VendorScorecardTableProps {
   vendors: VendorScore[];
   slaAvailable: boolean;
+  openRiskAvailable: boolean;
   repeatAvailable: boolean;
   costAvailable: boolean;
   minimumVerdicts: number;
@@ -30,6 +31,7 @@ interface VendorScorecardTableProps {
 export function VendorScorecardTable({
   vendors,
   slaAvailable,
+  openRiskAvailable,
   repeatAvailable,
   costAvailable,
   minimumVerdicts,
@@ -37,7 +39,8 @@ export function VendorScorecardTable({
 }: VendorScorecardTableProps) {
   const eligible = vendors.filter((vendor) => vendor.eligible);
   const ineligible = vendors.filter((vendor) => !vendor.eligible);
-  const columnCount = 4 + (slaAvailable ? 1 : 0) + (repeatAvailable ? 1 : 0) +
+  const columnCount = 5 + (slaAvailable ? 1 : 0) +
+    (openRiskAvailable ? 1 : 0) + (repeatAvailable ? 1 : 0) +
     (costAvailable ? 1 : 0);
 
   return (
@@ -50,6 +53,9 @@ export function VendorScorecardTable({
           <TableHead className="text-right">PASS rate (completed)</TableHead>
           {slaAvailable ? (
             <TableHead className="text-right">SLA compliance</TableHead>
+          ) : null}
+          {openRiskAvailable ? (
+            <TableHead className="min-w-40 text-right">Overdue open</TableHead>
           ) : null}
           {repeatAvailable ? (
             <TableHead className="text-right">Repeat rate</TableHead>
@@ -66,6 +72,7 @@ export function VendorScorecardTable({
             key={vendor.company}
             vendor={vendor}
             slaAvailable={slaAvailable}
+            openRiskAvailable={openRiskAvailable}
             repeatAvailable={repeatAvailable}
             costAvailable={costAvailable}
             onSelectVendor={onSelectVendor}
@@ -88,6 +95,7 @@ export function VendorScorecardTable({
                 key={vendor.company}
                 vendor={vendor}
                 slaAvailable={slaAvailable}
+                openRiskAvailable={openRiskAvailable}
                 repeatAvailable={repeatAvailable}
                 costAvailable={costAvailable}
                 onSelectVendor={onSelectVendor}
@@ -104,6 +112,7 @@ export function VendorScorecardTable({
 interface VendorRowProps {
   vendor: VendorScore;
   slaAvailable: boolean;
+  openRiskAvailable: boolean;
   repeatAvailable: boolean;
   costAvailable: boolean;
   onSelectVendor: (company: string) => void;
@@ -113,6 +122,7 @@ interface VendorRowProps {
 function VendorRow({
   vendor,
   slaAvailable,
+  openRiskAvailable,
   repeatAvailable,
   costAvailable,
   onSelectVendor,
@@ -188,6 +198,35 @@ function VendorRow({
                 {vendor.slaMedianDays == null
                   ? ""
                   : `${vendor.slaMedianDays.toFixed(1)}d`}
+              </span>
+            </>
+          )}
+        </TableCell>
+      ) : null}
+
+      {openRiskAvailable ? (
+        <TableCell className="text-right">
+          {vendor.openRepairs === 0 ? (
+            <span className="font-medium text-success">None</span>
+          ) : (
+            <>
+              <span
+                className={cn(
+                  "font-medium tabular-nums",
+                  vendor.overdueOpenRepairs > 0
+                    ? "text-destructive"
+                    : "text-foreground",
+                )}
+              >
+                {vendor.overdueOpenRepairs.toLocaleString()} /{" "}
+                {vendor.openRepairs.toLocaleString()}
+              </span>
+              <span className="ml-1.5 text-[10px] tabular-nums text-muted-foreground">
+                {vendor.overdueOpenRate?.toFixed(0)}%
+              </span>
+              <span className="block text-[10px] tabular-nums text-muted-foreground">
+                {vendor.medianOpenDays?.toFixed(0)}d median ·{" "}
+                {vendor.oldestOpenDays?.toFixed(0)}d oldest
               </span>
             </>
           )}

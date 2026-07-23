@@ -1,5 +1,5 @@
-import { RepairDashboard } from "@/features/repair-dashboard/components/repair-dashboard";
+import { redirect } from "next/navigation";
 
-export default function Home() {
-  return <RepairDashboard />;
+export default function IndexPage() {
+  redirect("/home");
 }

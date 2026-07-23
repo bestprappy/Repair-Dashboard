@@ -8,18 +8,15 @@ import {
   LayoutDashboard,
   Route,
   Timer,
+  Trophy,
 } from "lucide-react";
-import { useAtom } from "jotai";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
 import type { CompanyNavItem } from "../lib/selectors";
-import {
-  INSIGHTS_VIEW,
-  RECOMMENDATION_VIEW,
-  SLA_VIEW,
-} from "../lib/types";
-import { viewAtom } from "../state/atoms";
+import { companyRoute, DASHBOARD_ROUTES, viewFromPathname } from "../lib/routes";
 
 interface DashboardSidebarProps {
   grandTotal: number;
@@ -28,7 +25,8 @@ interface DashboardSidebarProps {
 
 /** Desktop navigation for overview, vendor drill-downs, and equipment analysis. */
 export function DashboardSidebar({ grandTotal, companies }: DashboardSidebarProps) {
-  const [view, setView] = useAtom(viewAtom);
+  const pathname = usePathname();
+  const view = viewFromPathname(pathname);
 
   return (
     <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-64 shrink-0 flex-col border-r border-border/80 bg-sidebar lg:flex">
@@ -39,7 +37,7 @@ export function DashboardSidebar({ grandTotal, companies }: DashboardSidebarProp
           count={grandTotal}
           icon={LayoutDashboard}
           active={view === "all"}
-          onSelect={() => setView("all")}
+          href={DASHBOARD_ROUTES.home}
         />
 
         <SidebarLabel className="mt-6">Companies</SidebarLabel>
@@ -51,7 +49,7 @@ export function DashboardSidebar({ grandTotal, companies }: DashboardSidebarProp
               count={company.count}
               icon={Building2}
               active={view === company.company}
-              onSelect={() => setView(company.company)}
+              href={companyRoute(company.company)}
             />
           ))}
         </div>
@@ -60,20 +58,26 @@ export function DashboardSidebar({ grandTotal, companies }: DashboardSidebarProp
         <SidebarTab
           name="SLA & Overdue"
           icon={Timer}
-          active={view === SLA_VIEW}
-          onSelect={() => setView(SLA_VIEW)}
+          active={pathname === DASHBOARD_ROUTES.sla}
+          href={DASHBOARD_ROUTES.sla}
         />
+        {/* <SidebarTab
+          name="Vendor scorecard"
+          icon={Trophy}
+          active={pathname === DASHBOARD_ROUTES.vendors}
+          href={DASHBOARD_ROUTES.vendors}
+        /> */}
         <SidebarTab
           name="Repair recommendation"
           icon={Route}
-          active={view === RECOMMENDATION_VIEW}
-          onSelect={() => setView(RECOMMENDATION_VIEW)}
+          active={pathname === DASHBOARD_ROUTES.recommendations}
+          href={DASHBOARD_ROUTES.recommendations}
         />
         <SidebarTab
           name="Equipment & models"
           icon={Boxes}
-          active={view === INSIGHTS_VIEW}
-          onSelect={() => setView(INSIGHTS_VIEW)}
+          active={pathname === DASHBOARD_ROUTES.equipment}
+          href={DASHBOARD_ROUTES.equipment}
         />
       </nav>
 
@@ -118,14 +122,13 @@ interface SidebarTabProps {
   count?: number;
   icon: LucideIcon;
   active: boolean;
-  onSelect: () => void;
+  href: string;
 }
 
-function SidebarTab({ name, count, icon: Icon, active, onSelect }: SidebarTabProps) {
+function SidebarTab({ name, count, icon: Icon, active, href }: SidebarTabProps) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <Link
+      href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
         "group relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-colors",
@@ -156,6 +159,6 @@ function SidebarTab({ name, count, icon: Icon, active, onSelect }: SidebarTabPro
           {count.toLocaleString()}
         </span>
       ) : null}
-    </button>
+    </Link>
   );
 }

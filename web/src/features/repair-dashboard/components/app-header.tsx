@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useTheme } from "next-themes";
 import { Moon, RefreshCw, Sun, Upload, Zap } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,9 +20,12 @@ import {
 import { ThemeColorMenu } from "@/components/theme-color-menu";
 
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
+import { routeForView, viewFromPathname } from "../lib/routes";
 import {
   INSIGHTS_VIEW,
   RECOMMENDATION_VIEW,
+  SCORECARD_VIEW,
+  SLA_VIEW,
 } from "../lib/types";
 import {
   dataSourceAtom,
@@ -29,7 +33,6 @@ import {
   lastUpdatedAtom,
   stageAtom,
   summaryAtom,
-  viewAtom,
 } from "../state/atoms";
 
 const emptySubscribe = () => () => {};
@@ -46,8 +49,8 @@ export function AppHeader() {
   const source = useAtomValue(dataSourceAtom);
   const lastUpdated = useAtomValue(lastUpdatedAtom);
   const stage = useAtomValue(stageAtom);
-  const view = useAtomValue(viewAtom);
-  const setView = useSetAtom(viewAtom);
+  const router = useRouter();
+  const view = viewFromPathname(usePathname());
   const setStage = useSetAtom(stageAtom);
   const setSource = useSetAtom(dataSourceAtom);
   const queryClient = useQueryClient();
@@ -66,7 +69,11 @@ export function AppHeader() {
         ? "Equipment & models"
         : view === RECOMMENDATION_VIEW
           ? "Repair recommendation"
-        : view;
+          : view === SLA_VIEW
+            ? "SLA & Overdue"
+            : view === SCORECARD_VIEW
+              ? "Vendor scorecard"
+              : view;
 
   const switchToUpload = () => {
     setSource("upload");
@@ -115,7 +122,7 @@ export function AppHeader() {
               } else if (next === "__live__") {
                 switchToLive();
               } else if (next) {
-                setView(next);
+                router.push(routeForView(next));
               }
             }}
           >
@@ -130,6 +137,8 @@ export function AppHeader() {
                 </SelectItem>
               ))}
               <SelectItem value={INSIGHTS_VIEW}>Equipment & models</SelectItem>
+              <SelectItem value={SLA_VIEW}>SLA & Overdue</SelectItem>
+              <SelectItem value={SCORECARD_VIEW}>Vendor scorecard</SelectItem>
               <SelectItem value={RECOMMENDATION_VIEW}>
                 Repair recommendation
               </SelectItem>

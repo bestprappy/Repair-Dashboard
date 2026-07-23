@@ -73,8 +73,8 @@ export function selectSlaAnalysis(rows: CsvRow[], mapping: ColumnMapping, target
     if (!date || !serial || isExcludedTabSheet(stage) || !/(input|output)/i.test(stage)) return [];
     return [{ row, date, serial, stage }];
   });
-  if (!events.some((event) => /input/i.test(event.stage)) || !events.some((event) => /output/i.test(event.stage))) {
-    return { ...empty, reason: "Turnaround needs both input and output workflow rows with valid dates." };
+  if (!events.some((event) => /input/i.test(event.stage))) {
+    return { ...empty, reason: "Turnaround and aging need input workflow rows with valid dates." };
   }
 
   const asOf = events.reduce((latest, event) => event.date > latest ? event.date : latest, events[0].date);

@@ -2,11 +2,11 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import {
   Award,
   CalendarCheck,
-  FileStack,
+  CircleAlert,
   Gauge,
   Search,
   Trophy,
@@ -22,16 +22,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
 
 import { DateRangeControl } from "./date-range-control";
 import { VendorScorecardTable } from "./vendor-scorecard-table";
 import { filterAnalyzedRows } from "../lib/insights";
+import { companyRoute } from "../lib/routes";
 import { selectVendorScorecard } from "../lib/scorecard";
 import type { RepairDataset } from "../lib/types";
 import {
   filteredRowsAtom,
   mappingAtom,
-  viewAtom,
 } from "../state/atoms";
 
 const DEFAULT_SLA_TARGET = 30;
@@ -40,7 +41,7 @@ const DEFAULT_SLA_TARGET = 30;
 export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
   const filteredRows = useAtomValue(filteredRowsAtom);
   const mapping = useAtomValue(mappingAtom);
-  const setView = useSetAtom(viewAtom);
+  const router = useRouter();
 
   const [target, setTarget] = useState(DEFAULT_SLA_TARGET);
   const [query, setQuery] = useState("");
@@ -64,13 +65,21 @@ export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
   }, [scorecard.vendors, deferredQuery]);
 
   const best = scorecard.bestVendor;
+  const totalOpen = scorecard.vendors.reduce(
+    (sum, vendor) => sum + vendor.openRepairs,
+    0,
+  );
+  const totalOverdueOpen = scorecard.vendors.reduce(
+    (sum, vendor) => sum + vendor.overdueOpenRepairs,
+    0,
+  );
 
   return (
     <div>
       <DashboardPageHeader
         eyebrow="Vendor performance"
         title="Vendor scorecard"
-        description="Every servicing company graded on a single composite of completion quality and SLA compliance, with repeat-repair and cost shown as context. Select a vendor to open its full view."
+        description="Every servicing company graded on completion quality, closed-repair SLA compliance, and unresolved backlog risk. Select a vendor to open its full view."
         months={dataset.allMonths}
         dateControl={
           <DateRangeControl
@@ -118,11 +127,19 @@ export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
           icon={CalendarCheck}
         />
         <MetricCard
-          label="Repair records"
-          value={scorecard.totalRecords.toLocaleString()}
-          sub={`${scorecard.vendors.length.toLocaleString()} servicing companies`}
-          accent="violet"
-          icon={FileStack}
+          label="Overdue open repairs"
+          value={
+            scorecard.openRiskAvailable
+              ? totalOverdueOpen.toLocaleString()
+              : "—"
+          }
+          sub={
+            scorecard.openRiskAvailable
+              ? `${totalOpen.toLocaleString()} total open · ${scorecard.targetDays}-day target`
+              : "Map lifecycle date, stage, and serial"
+          }
+          accent={totalOverdueOpen > 0 ? "amber" : "green"}
+          icon={CircleAlert}
         />
       </div>
 
@@ -135,9 +152,11 @@ export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
               </CardTitle>
               <CardDescription className="mt-1 text-xs leading-5">
                 Composite = {(scorecard.weights.quality * 100).toFixed(0)}%
-                PASS quality + {(scorecard.weights.sla * 100).toFixed(0)}% SLA
-                compliance. Ranked by composite; ties break on completed
-                verdicts.
+                PASS quality + {(scorecard.weights.sla * 100).toFixed(0)}%
+                completed SLA +{" "}
+                {(scorecard.weights.openRisk * 100).toFixed(0)}% open-repair
+                risk. Unavailable measures are excluded and remaining weights
+                are normalized.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -199,10 +218,11 @@ export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
             <VendorScorecardTable
               vendors={filteredVendors}
               slaAvailable={scorecard.slaAvailable}
+              openRiskAvailable={scorecard.openRiskAvailable}
               repeatAvailable={scorecard.repeatAvailable}
               costAvailable={scorecard.costAvailable}
               minimumVerdicts={scorecard.minimumVerdicts}
-              onSelectVendor={setView}
+              onSelectVendor={(company) => router.push(companyRoute(company))}
             />
           )}
         </CardContent>
@@ -216,8 +236,12 @@ export function VendorScorecardView({ dataset }: { dataset: RepairDataset }) {
         grade. SLA compliance is the share of input-to-output cycles closed
         within {scorecard.targetDays} days and counts toward the grade only when
         a vendor has at least five completed cycles. Repeat rate and median
-        amount are descriptive context and never change the ranking. Verdicts
-        and amounts are read from output rows; intake rows are excluded.
+        Open-repair risk is 100 minus the percentage of unresolved input cycles
+        older than the selected SLA target; vendors with no open cycles receive
+        100 for this measure. Age is measured through the latest valid lifecycle
+        date in the selected data. Repeat rate and median amount are descriptive
+        context and never change the ranking. Verdicts and amounts are read from
+        output rows; intake rows are excluded.
       </p>
     </div>
   );

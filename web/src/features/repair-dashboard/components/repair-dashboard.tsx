@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { useAtomValue, useSetAtom } from "jotai";
 import { CloudOff, RefreshCw, Upload } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,6 +23,7 @@ import { VendorScorecardView } from "./vendor-scorecard-view";
 import { useLiveSheet } from "../hooks/use-live-sheet";
 import { LIVE_SHEET_REF } from "../lib/live-sheet";
 import { selectAllCompanies } from "../lib/selectors";
+import { viewFromPathname } from "../lib/routes";
 import {
   INSIGHTS_VIEW,
   RECOMMENDATION_VIEW,
@@ -32,12 +36,18 @@ import { dataSourceAtom, datasetAtom, stageAtom, viewAtom } from "../state/atoms
 export function RepairDashboard() {
   const stage = useAtomValue(stageAtom);
   const dataset = useAtomValue(datasetAtom);
-  const view = useAtomValue(viewAtom);
+  const pathname = usePathname();
+  const view = viewFromPathname(pathname);
+  const setView = useSetAtom(viewAtom);
   const source = useAtomValue(dataSourceAtom);
   const setSource = useSetAtom(dataSourceAtom);
 
   const live = useLiveSheet();
   const liveActive = source === "live" && LIVE_SHEET_REF !== null;
+
+  useEffect(() => {
+    setView(view);
+  }, [setView, view]);
 
   return (
     <div className="flex min-h-screen flex-1 flex-col">
